@@ -54,7 +54,7 @@ export function CandleChart(props: {
 
     const isDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
     const chart = createChart(el, {
-      autoSize: true,
+      width: el.clientWidth,  
       height: 520, // 강제 높이 지정
       layout: {
         background: { color: isDark ? '#111827' : '#ffffff' },
