@@ -155,7 +155,7 @@ function App() {
         </div>
 
         {prediction && !prediction.error && (
-          <div className="card">
+          <div className="card predictionCard">
             <div className="cardHeader">
               <div className="meta">
                 <div className="metaTitle">
