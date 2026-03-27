@@ -11,6 +11,15 @@ try:
 except Exception:  # Python 3.14 환경에서는 pandas-ta 설치가 실패할 수 있음
     ta = None
 
+from datetime import datetime, timedelta
+
+# 최상단(app 선언 부근)에 전역 캐시 변수 추가
+RECOMMEND_CACHE = {
+    "data": None,
+    "last_updated": None
+}
+
+
 app = FastAPI(title="주식 분석 시스템 API")
 
 app.add_middleware(
@@ -107,19 +116,25 @@ def _cluster_by_price(candidates: list[tuple[float, float]], max_lines: int, tol
 
 
 def _support_resistance(close_values: np.ndarray, max_lines: int = 1) -> tuple[list[float], list[float]]:
-    lookback = min(60, len(close_values))
+    # 1. 60일 고정을 없애고 전달받은 데이터 전체 길이를 사용합니다.
+    lookback = len(close_values)
     if lookback < 5:
         return [], []
 
-    recent = close_values[-lookback:]
+    # 2. 최근 60일 자르기(-lookback:)를 제거하고 전체(recent)를 사용합니다.
+    recent = close_values
     y_range = float(np.max(recent) - np.min(recent))
     mean_val = float(np.mean(recent))
+    
+    # 3. 조회 기간(lookback)이 길어질수록 자잘한 파동을 무시하도록 동적 스케일링
     if lookback < 20:
         prominence = max(y_range * 0.001, mean_val * 0.0002)
         distance = 1
     else:
-        prominence = max(y_range * 0.012, mean_val * 0.001)
-        distance = max(2, lookback // 25)
+        # 전체 최고-최저 변동폭의 약 3% 이상(또는 평균가의 0.5% 이상) 큰 움직임만 유의미한 봉우리로 취급
+        prominence = max(y_range * 0.03, mean_val * 0.005)
+        # 캔들 개수에 비례하여 최소 간격을 넓힘 (전체 기간의 약 1/20 간격마다 하나씩)
+        distance = max(3, lookback // 20)
 
     peaks_idx, peaks_props = find_peaks(recent, prominence=prominence, distance=distance)
     trough_idx, trough_props = find_peaks(-recent, prominence=prominence, distance=distance)
@@ -134,8 +149,10 @@ def _support_resistance(close_values: np.ndarray, max_lines: int = 1) -> tuple[l
     if not support_candidates and len(recent) > 0:
         support_candidates = [(float(np.min(recent)), 0.0)]
 
+    # _cluster_by_price 함수는 기존에 만드신 것을 그대로 사용합니다.
     resistance = sorted(_cluster_by_price(resistance_candidates, max_lines=max_lines, tolerance_pct=0.005), reverse=True)
     support = sorted(_cluster_by_price(support_candidates, max_lines=max_lines, tolerance_pct=0.005))
+    
     return support, resistance
 
 
@@ -284,7 +301,24 @@ def get_recommendations(limit: int = Query(10, ge=1, le=50)):
     """
     스코어 기반 추천 Top N.
     성능을 위해 코스피/코스닥 종목 중 앞쪽 220개를 샘플링해서 평가합니다.
+    최근 계산 결과를 1시간(3600초) 동안 메모리에 캐싱하여 응답 속도를 높입니다.
     """
+    global RECOMMEND_CACHE
+    now = datetime.now()
+
+    # 1. 캐시 확인: 데이터가 존재하고, 계산된 지 1시간(3600초)이 지나지 않았다면 즉시 반환
+    if RECOMMEND_CACHE["data"] is not None and RECOMMEND_CACHE["last_updated"] is not None:
+        if (now - RECOMMEND_CACHE["last_updated"]).total_seconds() < 3600:
+            cached_ranked = RECOMMEND_CACHE["data"]
+            return {
+                "as_of": RECOMMEND_CACHE["as_of"],
+                "count": len(cached_ranked),
+                "top": cached_ranked[:limit], # 캐시된 전체 리스트에서 요청한 limit만큼만 잘라서 반환
+                "cached": True,
+                "last_updated": RECOMMEND_CACHE["last_updated"].strftime("%Y-%m-%d %H:%M:%S")
+            }
+
+    # 2. 캐시가 없거나 만료되었다면 새로 220개 종목 계산 진행
     try:
         day = _best_business_day()
         listing = _load_listing()
@@ -307,7 +341,117 @@ def get_recommendations(limit: int = Query(10, ge=1, le=50)):
             except Exception:
                 continue
 
+        # 점수 순으로 정렬
         ranked.sort(key=lambda x: x["score"], reverse=True)
-        return {"as_of": day, "count": len(ranked), "top": ranked[:limit]}
+
+        # 3. 계산이 끝난 전체 리스트(ranked)를 캐시에 덮어쓰기
+        RECOMMEND_CACHE["data"] = ranked
+        RECOMMEND_CACHE["last_updated"] = now
+        RECOMMEND_CACHE["as_of"] = day
+
+        return {
+            "as_of": day,
+            "count": len(ranked),
+            "top": ranked[:limit],
+            "cached": False,
+            "last_updated": now.strftime("%Y-%m-%d %H:%M:%S")
+        }
     except Exception as e:
         return {"error": f"추천 계산 중 오류 발생: {str(e)}"}
+    
+
+@app.get("/api/stock/{ticker}/predict")
+def predict_stock(ticker: str, start_date: str | None = None, end_date: str | None = None):
+    try:
+        # 최근 1년치 데이터 강제 설정 (추세 분석을 위해)
+        import datetime as dt
+        end_d = dt.datetime.today()
+        start_d = end_d - dt.timedelta(days=365)
+        
+        start_str = start_d.strftime("%Y%m%d")
+        end_str = end_d.strftime("%Y%m%d")
+        
+        df = stock.get_market_ohlcv(start_str, end_str, ticker)
+        if df.empty:
+            return {"error": "데이터 없음"}
+            
+        df.columns = ["open", "high", "low", "close", "volume", "value", "fluctuation"] if len(df.columns) == 8 else ["open", "high", "low", "close", "volume", "fluctuation"]
+        
+        # 보조지표 계산 (pandas_ta 활용)
+        df.ta.rsi(length=14, append=True)
+        df.ta.macd(fast=12, slow=26, signal=9, append=True)
+        df.ta.bbands(length=20, std=2, append=True)
+        df.ta.sma(length=20, append=True)
+        df.ta.sma(length=60, append=True)
+        df.ta.sma(length=120, append=True)
+        
+        latest = df.iloc[-1]
+        prev = df.iloc[-2]
+        cur = latest['close']
+        
+        signals = []
+        score = 50 # 기본점수 50점에서 가감하는 방식이 결과 분포가 더 예쁘게 나옵니다.
+
+        # 1. 이동평균 (추세)
+        s20, s60, s120 = latest.get('SMA_20'), latest.get('SMA_60'), latest.get('SMA_120')
+        if pd.notna(s120):
+            if cur > s20 > s60 > s120:
+                score += 15
+                signals.append({"type": "positive", "label": "정배열 (대세 상승)", "desc": "주가와 단기/중기/장기 이동평균선이 모두 우상향 중입니다."})
+            elif cur < s20 < s60 < s120:
+                score -= 15
+                signals.append({"type": "negative", "label": "역배열 (하락 추세)", "desc": "완연한 하락 추세입니다. 섣부른 매수는 위험합니다."})
+
+        # 2. RSI (과매도/과매수 심리)
+        rsi = latest.get('RSI_14')
+        if pd.notna(rsi):
+            if rsi <= 30:
+                score += 15
+                signals.append({"type": "positive", "label": f"RSI 바닥 ({rsi:.1f})", "desc": "사람들이 공포에 질려 많이 팔았습니다. 반등이 나올 자리입니다."})
+            elif rsi >= 70:
+                score -= 15
+                signals.append({"type": "negative", "label": f"RSI 과열 ({rsi:.1f})", "desc": "단기적으로 너무 올랐습니다. 조정을 주의해야 합니다."})
+
+        # 3. MACD (모멘텀)
+        macd = latest.get('MACD_12_26_9')
+        signal_line = latest.get('MACDs_12_26_9')
+        hist_now = latest.get('MACDh_12_26_9')
+        hist_prev = prev.get('MACDh_12_26_9')
+        
+        if pd.notna(macd) and pd.notna(signal_line):
+            if macd > signal_line and hist_now > hist_prev:
+                score += 10
+                signals.append({"type": "positive", "label": "MACD 매수 신호", "desc": "상승하는 힘(모멘텀)이 강해지고 있습니다."})
+            elif macd < signal_line and hist_now < hist_prev:
+                score -= 10
+                signals.append({"type": "negative", "label": "MACD 매도 신호", "desc": "하락하는 힘이 강해지고 있습니다."})
+
+        # 4. 볼린저 밴드 (변동성)
+        bb_up, bb_dn = latest.get('BBU_20_2.0'), latest.get('BBL_20_2.0')
+        if pd.notna(bb_up):
+            if cur <= bb_dn * 1.02: # 하단 2% 이내
+                score += 10
+                signals.append({"type": "positive", "label": "볼린저 하단 지지", "desc": "통계적 바닥 구간에 도달했습니다."})
+            elif cur >= bb_up * 0.98: # 상단 2% 이내
+                score -= 10
+                signals.append({"type": "negative", "label": "볼린저 상단 저항", "desc": "통계적 천장 구간에 도달했습니다."})
+
+        # 점수 정규화 (0 ~ 100)
+        final_score = max(0, min(100, score))
+
+        if final_score >= 70:
+            summary = "현재 기술적 지표들이 강력한 매수 신호를 보내고 있습니다."
+        elif final_score >= 40:
+            summary = "상승과 하락 신호가 섞여 있습니다. 확실한 방향이 나올 때까지 관망하세요."
+        else:
+            summary = "하락 추세가 강합니다. 지금은 매수를 피하는 것이 좋습니다."
+
+        return {
+            "ticker": ticker,
+            "current_price": int(cur),
+            "prediction_score": final_score,
+            "summary": summary,
+            "signals": signals,
+        }
+    except Exception as e:
+        return {"error": f"예측 중 오류 발생: {str(e)}"}
