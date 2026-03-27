@@ -34,6 +34,34 @@ export type RecommendationItem = {
   stock_name: string
   score: number
 }
+export interface PredictionSignal {
+  type: 'positive' | 'negative' | 'neutral'
+  label: string
+  desc: string
+}
+
+export interface PredictionResult {
+  ticker: string
+  stock_name: string
+  current_price: number
+  prediction_score: number
+  outlook_short: string
+  outlook_mid: string
+  summary: string
+  signals: PredictionSignal[]
+  error?: string
+}
+
+export async function fetchPrediction(
+  ticker: string,
+  startDate: string,
+  endDate: string,
+): Promise<PredictionResult> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  const res = await fetch(`${API_BASE}/api/stock/${encodeURIComponent(ticker)}/predict?${params}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
 
 function toQuery(params: Record<string, string>) {
   const usp = new URLSearchParams()
@@ -132,5 +160,7 @@ export async function fetchRecommendations(limit = 10) {
           score: x.score as number,
         }) as RecommendationItem,
     )
+
+  
 }
 
