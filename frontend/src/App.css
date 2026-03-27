@@ -67,12 +67,20 @@
   background: var(--accent-bg);
   color: var(--text-h);
   cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 예측 카드 margin 추가 */
+.predictionCard {
+  margin-top: 14px;
 }
 
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+
 
 .main {
   padding: 16px 20px 24px;
