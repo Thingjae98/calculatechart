@@ -4,16 +4,17 @@ import {
   createChart,
   type IChartApi,
   type IPriceLine,
-  type UTCTimestamp,
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Candle } from '../lib/api' // 본인의 파일 경로에 맞게 확인해주세요
 
-function parseIsoDateToUtcTimestamp(iso: string): UTCTimestamp | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
-  if (!m) return null
-  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0)
-  return Math.floor(ms / 1000) as UTCTimestamp
+// 🔥 경로 에러를 원천 차단하기 위해, 다른 파일에서 불러오지 않고 직접 타입을 정의합니다!
+export interface Candle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
 }
 
 export function CandleChart(props: {
@@ -29,40 +30,47 @@ export function CandleChart(props: {
   const resistancePriceLinesRef = useRef<IPriceLine[]>([])
   const boxPriceLinesRef = useRef<IPriceLine[]>([])
   
-  // 🔥 에러를 화면에 직접 띄워주는 상태값 추가
+  // 에러 원인을 화면에 직접 띄워줄 상태
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const seriesData = useMemo(() => {
     try {
-      if (!props.candles || !Array.isArray(props.candles)) return []
+      if (!props.candles || !Array.isArray(props.candles) || props.candles.length === 0) return []
 
-      // null, NaN 등을 완벽하게 걸러내는 안전 장치
-      const isValidNum = (v: any) => typeof v === 'number' && !Number.isNaN(v)
+      const validCandles = props.candles.map((c: any) => {
+        const rawTime = String(c.time || '');
+        const timeStr = rawTime.substring(0, 10); 
 
-      const validCandles = props.candles
-        .map((c) => {
-          const t = parseIsoDateToUtcTimestamp(c.time)
-          if (!t || !isValidNum(c.open) || !isValidNum(c.high) || !isValidNum(c.low) || !isValidNum(c.close)) return null
-          return { time: t, open: c.open, high: c.high, low: c.low, close: c.close }
-        })
-        .filter((x): x is NonNullable<typeof x> => Boolean(x))
+        const parsePrice = (v: any) => Number(String(v).replace(/,/g, ''));
+        const open = parsePrice(c.open);
+        const high = parsePrice(c.high);
+        const low = parsePrice(c.low);
+        const close = parsePrice(c.close);
 
-      // 1. 차트 필수 조건: 시간 오름차순 정렬
-      validCandles.sort((a, b) => (a.time as number) - (b.time as number))
+        if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close) || !/^\d{4}-\d{2}-\d{2}$/.test(timeStr)) {
+          return null;
+        }
+        return { time: timeStr, open, high, low, close };
+      }).filter((x): x is NonNullable<typeof x> => Boolean(x));
 
-      // 2. 차트 필수 조건: 중복 날짜 완벽 제거 (중복 시 차트 뻗음)
-      const uniqueCandles = []
-      const seen = new Set()
+      if (validCandles.length === 0 && props.candles.length > 0) {
+        throw new Error(`데이터 형식이 맞지 않아 캔들을 그릴 수 없습니다.\n원본 데이터 샘플:\n${JSON.stringify(props.candles[0], null, 2)}`);
+      }
+
+      validCandles.sort((a, b) => a.time.localeCompare(b.time));
+      const uniqueCandles = [];
+      let lastTime = '';
       for (const c of validCandles) {
-        if (!seen.has(c.time)) {
-          seen.add(c.time)
-          uniqueCandles.push(c)
+        if (c.time !== lastTime) {
+          uniqueCandles.push(c);
+          lastTime = c.time;
         }
       }
-      return uniqueCandles
+
+      return uniqueCandles;
     } catch (e: any) {
-      setErrorMsg("데이터 변환 실패: " + e.message)
-      return []
+      setErrorMsg(e.message);
+      return [];
     }
   }, [props.candles])
 
@@ -73,7 +81,7 @@ export function CandleChart(props: {
     try {
       const isDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
       const chart = createChart(el, {
-        autoSize: true, // 크기 자동 맞춤
+        autoSize: true,
         layout: {
           background: { color: isDark ? '#111827' : '#ffffff' },
           textColor: isDark ? '#e5e7eb' : '#111827',
@@ -97,7 +105,7 @@ export function CandleChart(props: {
         wickDownColor: '#ef4444',
       })
     } catch (e: any) {
-      setErrorMsg("차트 생성 실패: " + e.message)
+      setErrorMsg("차트 라이브러리 초기화 실패: " + e.message)
     }
 
     return () => {
@@ -116,9 +124,9 @@ export function CandleChart(props: {
     try {
       seriesRef.current.setData(seriesData)
       chartRef.current.timeScale().fitContent()
-      setErrorMsg(null) // 성공 시 에러 메시지 초기화
+      setErrorMsg(null) 
     } catch (err: any) {
-      setErrorMsg("차트 그리기 실패: " + err.message)
+      setErrorMsg(`차트에 데이터를 그리는 중 에러 발생!\n내용: ${err.message}`)
     }
   }, [seriesData])
 
@@ -167,13 +175,12 @@ export function CandleChart(props: {
 
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: '520px', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#f9fafb' }}>
-      {/* 에러 발생 시 빨간색 글씨로 차트 껍데기 안에 즉시 원인을 보여줍니다 */}
       {errorMsg && (
-        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'red', fontWeight: 'bold', zIndex: 10 }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', color: '#ff8a8a', padding: '20px', zIndex: 50, overflow: 'auto', fontSize: '15px', whiteSpace: 'pre-wrap' }}>
+          <h3 style={{fontWeight: 'bold', marginBottom: '10px', color: '#ff4d4d'}}>🚨 원인 발견</h3>
           {errorMsg}
         </div>
       )}
-      {/* 차트가 들어갈 진짜 껍데기 */}
       <div ref={containerRef} style={{ width: '100%', height: '520px' }} />
     </div>
   )
