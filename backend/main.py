@@ -360,10 +360,13 @@ def get_recommendations(limit: int = Query(10, ge=1, le=50)):
         return {"error": f"추천 계산 중 오류 발생: {str(e)}"}
     
 
-@app.get("/api/stock/{ticker}/predict")
-def predict_stock(ticker: str, start_date: str | None = None, end_date: str | None = None):
+# [수정포인트 1] 주소창에서 받을 변수명을 {ticker_or_name}으로 변경
+@app.get("/api/stock/{ticker_or_name}/predict")
+# [수정포인트 2] 함수가 받는 변수명도 ticker_or_name으로 변경
+def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: str | None = None):
     try:
         try:
+            # 이제 위에서 받은 ticker_or_name을 여기서 정상적으로 사용할 수 있습니다!
             ticker, stock_name = _resolve_ticker(ticker_or_name)
         except Exception:
             ticker = ticker_or_name
