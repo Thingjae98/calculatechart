@@ -41,15 +41,24 @@ function toQuery(params: Record<string, string>) {
   return usp.toString()
 }
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
+
+function buildApiUrl(path: string) {
+  if (!API_BASE_URL) return path
+  const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL
+  const p = path.startsWith('/') ? path : `/${path}`
+  return `${base}${p}`
+}
+
 export async function fetchOhlcv(args: {
   ticker: string
   start_date: string
   end_date: string
 }) {
-  const url = `/api/stock/${encodeURIComponent(args.ticker)}?${toQuery({
+  const url = buildApiUrl(`/api/stock/${encodeURIComponent(args.ticker)}?${toQuery({
     start_date: args.start_date,
     end_date: args.end_date,
-  })}`
+  })}`)
 
   const res = await fetch(url, { method: 'GET' })
   const body = (await res.json()) as OhlcvResponse
@@ -106,7 +115,7 @@ export async function fetchOhlcv(args: {
 }
 
 export async function fetchRecommendations(limit = 10) {
-  const res = await fetch(`/api/recommendations?limit=${limit}`, { method: 'GET' })
+  const res = await fetch(buildApiUrl(`/api/recommendations?limit=${limit}`), { method: 'GET' })
   const body = (await res.json()) as { top?: unknown; error?: string }
   if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`)
   if (body?.error) throw new Error(body.error)
