@@ -96,8 +96,11 @@ export function CandleChart(props: {
     const series = seriesRef.current
     if (!chart || !series) return
 
-    series.setData(seriesData)
-    chart.timeScale().fitContent()
+    // 데이터가 1개 이상일 때만 세팅하고 화면에 맞추도록 방어 로직 추가
+    if (seriesData.length > 0) {
+      series.setData(seriesData)
+      chart.timeScale().fitContent()
+    }
   }, [seriesData])
 
   useEffect(() => {
@@ -161,6 +164,6 @@ export function CandleChart(props: {
     }
   }, [props.supportLines, props.resistanceLines, props.boxRange])
 
-  return <div ref={containerRef} className="chart" />
+  return <div ref={containerRef} style={{ width: '100%', height: '520px' }} />
 }
 
