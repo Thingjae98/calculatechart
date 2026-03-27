@@ -5,17 +5,20 @@
 }
 
 .header {
-  padding: 20px 20px 12px;
+  padding: 24px 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
-  gap: 16px;
-  align-items: end;
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column; /* 제목과 폼을 위아래로 배치하여 공간 확보 */
+  gap: 20px;
+  align-items: flex-start;
+  background-color: var(--card-bg); /* 배경색 명시 (선택사항) */
 }
 
-.title {
-  text-align: left;
+
+.title h1 {
+  font-size: 24px;
+  margin-bottom: 4px;
+  color: var(--text-h);
 }
 
 .subtitle {
@@ -24,10 +27,10 @@
 
 .form {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: end;
-  justify-content: end;
+  gap: 12px;
+  flex-wrap: wrap; /* 요소가 많으면 자동으로 다음 줄로 */
+  align-items: flex-end;
+  width: 100%; /* 전체 너비 사용 */
 }
 
 .field {
@@ -35,7 +38,8 @@
   flex-direction: column;
   gap: 6px;
   text-align: left;
-  min-width: 160px;
+  flex: 1; /* 가용한 공간을 나눠 가짐 */
+  min-width: 140px; /* 너무 좁아지지 않게 방지 */
 }
 
 .field span {
@@ -61,13 +65,27 @@
 
 .btn {
   height: 38px;
-  padding: 0 14px;
+  padding: 0 18px;
   border-radius: 10px;
-  border: 1px solid var(--accent-border);
-  background: var(--accent-bg);
-  color: var(--text-h);
-  cursor: pointer;
-  white-space: nowrap;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn:nth-of-type(2) {
+  background: #3b82f6; /* 파란색 계열로 포인트 */
+  color: white;
+  border: none;
+}
+.btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 /* 예측 카드 margin 추가 */
@@ -106,6 +124,19 @@
 @media (prefers-color-scheme: dark) {
   .card {
     background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+@media (max-width: 600px) {
+  .form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .field {
+    width: 100%;
+  }
+  .btn {
+    width: 100%;
   }
 }
 
