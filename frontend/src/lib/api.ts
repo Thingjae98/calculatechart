@@ -69,6 +69,8 @@ function toQuery(params: Record<string, string>) {
   return usp.toString()
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
 
 function buildApiUrl(path: string) {
