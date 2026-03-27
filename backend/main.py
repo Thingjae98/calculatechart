@@ -363,6 +363,10 @@ def get_recommendations(limit: int = Query(10, ge=1, le=50)):
 @app.get("/api/stock/{ticker}/predict")
 def predict_stock(ticker: str, start_date: str | None = None, end_date: str | None = None):
     try:
+        try:
+            _, stock_name = _resolve_ticker(ticker)
+        except Exception:
+            stock_name = ticker
         # 최근 1년치 데이터 강제 설정 (추세 분석을 위해)
         import datetime as dt
         end_d = dt.datetime.today()
@@ -448,8 +452,11 @@ def predict_stock(ticker: str, start_date: str | None = None, end_date: str | No
 
         return {
             "ticker": ticker,
+            "stock_name": ticker,  # ← 추가
             "current_price": int(cur),
             "prediction_score": final_score,
+            "outlook_short": "상승 우세" if final_score >= 70 else "중립 / 관망" if final_score >= 40 else "하락 주의",  # ← 추가
+            "outlook_mid": "추세 지속 가능" if final_score >= 70 else "방향성 확인 필요" if final_score >= 40 else "조정 가능성 존재",  # ← 추가
             "summary": summary,
             "signals": signals,
         }
