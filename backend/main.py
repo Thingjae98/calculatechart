@@ -367,98 +367,122 @@ def predict_stock(ticker: str, start_date: str | None = None, end_date: str | No
             _, stock_name = _resolve_ticker(ticker)
         except Exception:
             stock_name = ticker
-        # 최근 1년치 데이터 강제 설정 (추세 분석을 위해)
+
         import datetime as dt
         end_d = dt.datetime.today()
         start_d = end_d - dt.timedelta(days=365)
-        
         start_str = start_d.strftime("%Y%m%d")
         end_str = end_d.strftime("%Y%m%d")
-        
-        df = stock.get_market_ohlcv(start_str, end_str, ticker)
-        if df.empty:
-            return {"error": "데이터 없음"}
-            
-        df.columns = ["open", "high", "low", "close", "volume", "value", "fluctuation"] if len(df.columns) == 8 else ["open", "high", "low", "close", "volume", "fluctuation"]
-        
-        # 보조지표 계산 (pandas_ta 활용)
-        df.ta.rsi(length=14, append=True)
-        df.ta.macd(fast=12, slow=26, signal=9, append=True)
-        df.ta.bbands(length=20, std=2, append=True)
-        df.ta.sma(length=20, append=True)
-        df.ta.sma(length=60, append=True)
-        df.ta.sma(length=120, append=True)
-        
-        latest = df.iloc[-1]
-        prev = df.iloc[-2]
-        cur = latest['close']
-        
-        signals = []
-        score = 50 # 기본점수 50점에서 가감하는 방식이 결과 분포가 더 예쁘게 나옵니다.
 
-        # 1. 이동평균 (추세)
-        s20, s60, s120 = latest.get('SMA_20'), latest.get('SMA_60'), latest.get('SMA_120')
-        if pd.notna(s120):
+        raw = stock.get_market_ohlcv(start_str, end_str, ticker)
+        if raw.empty:
+            return {"error": "데이터 없음"}
+
+        # ← 기존 df.columns = [...] 전체 삭제하고 이걸로 교체
+        df = _standardize_ohlcv(raw)
+
+        # pandas_ta 컬럼명으로 수동 계산 (df.ta 액세서 대신)
+        close = pd.to_numeric(df["close"], errors="coerce")
+        open_ = pd.to_numeric(df["open"], errors="coerce")
+        vol   = pd.to_numeric(df["volume"], errors="coerce")
+
+        # 이동평균
+        sma20  = close.rolling(20).mean()
+        sma60  = close.rolling(60).mean()
+        sma120 = close.rolling(120).mean()
+
+        # RSI
+        if ta is not None:
+            rsi_series = ta.rsi(close, length=14)
+        else:
+            delta = close.diff()
+            gain  = delta.clip(lower=0).rolling(14).mean()
+            loss  = (-delta.clip(upper=0)).rolling(14).mean()
+            rs    = gain / loss.replace(0, np.nan)
+            rsi_series = 100 - (100 / (1 + rs))
+
+        # MACD
+        ema12       = close.ewm(span=12, adjust=False).mean()
+        ema26       = close.ewm(span=26, adjust=False).mean()
+        macd_line   = ema12 - ema26
+        signal_line = macd_line.ewm(span=9, adjust=False).mean()
+        histogram   = macd_line - signal_line
+
+        # 볼린저 밴드
+        bb_mid = close.rolling(20).mean()
+        bb_std = close.rolling(20).std()
+        bb_up  = bb_mid + 2 * bb_std
+        bb_dn  = bb_mid - 2 * bb_std
+
+        cur       = float(close.iloc[-1])
+        signals   = []
+        score     = 50
+
+        # 1. 이동평균
+        if not sma120.dropna().empty:
+            s20, s60, s120 = float(sma20.iloc[-1]), float(sma60.iloc[-1]), float(sma120.iloc[-1])
             if cur > s20 > s60 > s120:
                 score += 15
-                signals.append({"type": "positive", "label": "정배열 (대세 상승)", "desc": "주가와 단기/중기/장기 이동평균선이 모두 우상향 중입니다."})
+                signals.append({"type": "positive", "label": "정배열 (대세 상승)", "desc": "단기/중기/장기 이동평균이 모두 우상향 중입니다."})
             elif cur < s20 < s60 < s120:
                 score -= 15
                 signals.append({"type": "negative", "label": "역배열 (하락 추세)", "desc": "완연한 하락 추세입니다. 섣부른 매수는 위험합니다."})
 
-        # 2. RSI (과매도/과매수 심리)
-        rsi = latest.get('RSI_14')
-        if pd.notna(rsi):
+        # 2. RSI
+        if rsi_series is not None and not rsi_series.dropna().empty:
+            rsi = float(rsi_series.iloc[-1])
             if rsi <= 30:
                 score += 15
-                signals.append({"type": "positive", "label": f"RSI 바닥 ({rsi:.1f})", "desc": "사람들이 공포에 질려 많이 팔았습니다. 반등이 나올 자리입니다."})
+                signals.append({"type": "positive", "label": f"RSI 바닥 ({rsi:.1f})", "desc": "공포에 의한 과매도 구간입니다. 반등 가능성이 높습니다."})
             elif rsi >= 70:
                 score -= 15
-                signals.append({"type": "negative", "label": f"RSI 과열 ({rsi:.1f})", "desc": "단기적으로 너무 올랐습니다. 조정을 주의해야 합니다."})
+                signals.append({"type": "negative", "label": f"RSI 과열 ({rsi:.1f})", "desc": "단기 과매수 상태입니다. 조정을 주의하세요."})
+            else:
+                signals.append({"type": "neutral", "label": f"RSI 중립 ({rsi:.1f})", "desc": "과매도/과매수 구간이 아닙니다."})
 
-        # 3. MACD (모멘텀)
-        macd = latest.get('MACD_12_26_9')
-        signal_line = latest.get('MACDs_12_26_9')
-        hist_now = latest.get('MACDh_12_26_9')
-        hist_prev = prev.get('MACDh_12_26_9')
-        
-        if pd.notna(macd) and pd.notna(signal_line):
-            if macd > signal_line and hist_now > hist_prev:
+        # 3. MACD
+        if not histogram.dropna().empty and len(histogram.dropna()) >= 2:
+            hist_now  = float(histogram.iloc[-1])
+            hist_prev = float(histogram.iloc[-2])
+            if float(macd_line.iloc[-1]) > float(signal_line.iloc[-1]) and hist_now > hist_prev:
                 score += 10
-                signals.append({"type": "positive", "label": "MACD 매수 신호", "desc": "상승하는 힘(모멘텀)이 강해지고 있습니다."})
-            elif macd < signal_line and hist_now < hist_prev:
+                signals.append({"type": "positive", "label": "MACD 매수 신호", "desc": "상승 모멘텀이 강해지고 있습니다."})
+            elif float(macd_line.iloc[-1]) < float(signal_line.iloc[-1]) and hist_now < hist_prev:
                 score -= 10
-                signals.append({"type": "negative", "label": "MACD 매도 신호", "desc": "하락하는 힘이 강해지고 있습니다."})
+                signals.append({"type": "negative", "label": "MACD 매도 신호", "desc": "하락 모멘텀이 강해지고 있습니다."})
 
-        # 4. 볼린저 밴드 (변동성)
-        bb_up, bb_dn = latest.get('BBU_20_2.0'), latest.get('BBL_20_2.0')
-        if pd.notna(bb_up):
-            if cur <= bb_dn * 1.02: # 하단 2% 이내
+        # 4. 볼린저 밴드
+        if not bb_up.dropna().empty:
+            up_val, dn_val = float(bb_up.iloc[-1]), float(bb_dn.iloc[-1])
+            if cur <= dn_val * 1.02:
                 score += 10
                 signals.append({"type": "positive", "label": "볼린저 하단 지지", "desc": "통계적 바닥 구간에 도달했습니다."})
-            elif cur >= bb_up * 0.98: # 상단 2% 이내
+            elif cur >= up_val * 0.98:
                 score -= 10
                 signals.append({"type": "negative", "label": "볼린저 상단 저항", "desc": "통계적 천장 구간에 도달했습니다."})
 
-        # 점수 정규화 (0 ~ 100)
         final_score = max(0, min(100, score))
 
         if final_score >= 70:
-            summary = "현재 기술적 지표들이 강력한 매수 신호를 보내고 있습니다."
+            outlook_short, outlook_mid = "상승 우세", "추세 지속 가능"
+            summary = "기술적 지표 다수가 매수 신호입니다."
         elif final_score >= 40:
-            summary = "상승과 하락 신호가 섞여 있습니다. 확실한 방향이 나올 때까지 관망하세요."
+            outlook_short, outlook_mid = "중립 / 관망", "방향성 확인 필요"
+            summary = "상승/하락 신호가 혼재합니다. 추가 확인 후 진입을 권장합니다."
         else:
-            summary = "하락 추세가 강합니다. 지금은 매수를 피하는 것이 좋습니다."
+            outlook_short, outlook_mid = "하락 주의", "조정 가능성 존재"
+            summary = "하락 지표가 우세합니다. 리스크 관리에 유의하세요."
 
         return {
             "ticker": ticker,
-            "stock_name": ticker,  # ← 추가
+            "stock_name": stock_name,
             "current_price": int(cur),
             "prediction_score": final_score,
-            "outlook_short": "상승 우세" if final_score >= 70 else "중립 / 관망" if final_score >= 40 else "하락 주의",  # ← 추가
-            "outlook_mid": "추세 지속 가능" if final_score >= 70 else "방향성 확인 필요" if final_score >= 40 else "조정 가능성 존재",  # ← 추가
+            "outlook_short": outlook_short,
+            "outlook_mid": outlook_mid,
             "summary": summary,
             "signals": signals,
         }
+
     except Exception as e:
         return {"error": f"예측 중 오류 발생: {str(e)}"}
