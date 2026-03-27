@@ -364,10 +364,10 @@ def get_recommendations(limit: int = Query(10, ge=1, le=50)):
 def predict_stock(ticker: str, start_date: str | None = None, end_date: str | None = None):
     try:
         try:
-            # '_' 대신 'ticker'로 받아서, 한글로 들어온 값을 숫자 코드로 덮어씌웁니다!
-            ticker, stock_name = _resolve_ticker(ticker)
+            ticker, stock_name = _resolve_ticker(ticker_or_name)
         except Exception:
-            stock_name = ticker
+            ticker = ticker_or_name
+            stock_name = ticker_or_name
 
         import datetime as dt
         end_d = dt.datetime.today()
