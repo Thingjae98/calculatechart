@@ -1,14 +1,17 @@
 import './App.css'
 import { useEffect, useMemo, useState } from 'react'
 import type { Candle, RecommendationItem } from './lib/api'
-import { fetchOhlcv, fetchRecommendations } from './lib/api'
 import { CandleChart } from './components/CandleChart'
+import { fetchOhlcv, fetchRecommendations, fetchPrediction } from './lib/api'
+import type { PredictionResult } from './lib/api'
 
 function App() {
   const [ticker, setTicker] = useState('005930')
   const toYmd = (d: Date) => d.toISOString().slice(0, 10)
   const [endDate, setEndDate] = useState(() => toYmd(new Date()))
   const [startDate, setStartDate] = useState(() => toYmd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 90)))
+  const [prediction, setPrediction] = useState<PredictionResult | null>(null)
+  const [predLoading, setPredLoading] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +55,18 @@ function App() {
       setBoxRange({ is_box: false })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function onPredict() {
+    setPredLoading(true)
+    try {
+      const result = await fetchPrediction(ticker.trim(), startDate, endDate)
+      setPrediction(result)
+    } catch {
+      setPrediction(null)
+    } finally {
+      setPredLoading(false)
     }
   }
 
@@ -112,6 +127,9 @@ function App() {
           <button className="btn" type="submit" disabled={!canSubmit || loading}>
             {loading ? '불러오는 중…' : '조회'}
           </button>
+          <button className="btn" type="button" onClick={onPredict} disabled={!canSubmit || predLoading}>
+            {predLoading ? '분석 중…' : '📈 주가 예측'}
+          </button>
         </form>
       </header>
 
@@ -135,6 +153,41 @@ function App() {
             boxRange={boxRange}
           />
         </div>
+
+        {prediction && !prediction.error && (
+          <div className="card">
+            <div className="cardHeader">
+              <div className="meta">
+                <div className="metaTitle">
+                  {prediction.stock_name} 예측 분석
+                  <span style={{ marginLeft: 12, fontSize: 14, color: prediction.prediction_score >= 70 ? '#22c55e' : prediction.prediction_score >= 50 ? '#f59e0b' : '#ef4444' }}>
+                    종합점수 {prediction.prediction_score}/100
+                  </span>
+                </div>
+                <div className="metaSub">현재가 {prediction.current_price.toLocaleString()}원</div>
+              </div>
+            </div>
+        
+            <div style={{ padding: '12px 0', borderBottom: '1px solid #2d3748', marginBottom: 12 }}>
+              <div style={{ fontSize: 14, color: '#94a3b8', marginBottom: 4 }}>단기(1~2주): <strong style={{ color: '#e2e8f0' }}>{prediction.outlook_short}</strong> &nbsp;|&nbsp; 중기(1달): <strong style={{ color: '#e2e8f0' }}>{prediction.outlook_mid}</strong></div>
+              <div style={{ fontSize: 14, color: '#cbd5e1' }}>{prediction.summary}</div>
+            </div>
+        
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {prediction.signals.map((sig, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 16 }}>
+                    {sig.type === 'positive' ? '🟢' : sig.type === 'negative' ? '🔴' : '🟡'}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{sig.label}</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>{sig.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="card recommendationCard">
           <div className="cardHeader">
