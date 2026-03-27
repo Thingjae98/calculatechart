@@ -58,9 +58,12 @@ export async function fetchPrediction(
   endDate: string,
 ): Promise<PredictionResult> {
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
-  const res = await fetch(`${API_BASE}/api/stock/${encodeURIComponent(ticker)}/predict?${params}`)
+  const url = buildApiUrl(`/api/stock/${encodeURIComponent(ticker)}/predict?${params}`)
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  const body = await res.json()
+  if (body?.error) throw new Error(body.error)
+  return body
 }
 
 function toQuery(params: Record<string, string>) {
