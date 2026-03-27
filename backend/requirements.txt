@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pykrx
+pandas
+scipy
+finance-datareader

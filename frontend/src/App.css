@@ -1,0 +1,166 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.header {
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.title {
+  text-align: left;
+}
+
+.subtitle {
+  color: var(--text);
+}
+
+.form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  min-width: 160px;
+}
+
+.field span {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.field input {
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-h);
+  padding: 0 12px;
+  outline: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .field input {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.main {
+  padding: 16px 20px 24px;
+}
+
+.alert {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--text-h);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+.cardHeader {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.meta {
+  text-align: left;
+}
+
+.metaTitle {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.metaSub {
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.chart {
+  width: 100%;
+  height: 520px;
+}
+
+.recommendationCard {
+  margin-top: 14px;
+}
+
+.recommendList {
+  display: flex;
+  flex-direction: column;
+}
+
+.recommendItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  padding: 10px 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.recommendItem:last-child {
+  border-bottom: 0;
+}
+
+.recommendItem strong {
+  color: var(--text-h);
+}
+
+.recommendEmpty {
+  padding: 14px;
+  color: var(--text);
+  text-align: left;
+}
