@@ -1,4 +1,10 @@
-from datetime import date, timedelta
+import asyncio
+import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta
+from functools import partial
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
@@ -6,26 +12,50 @@ import pandas as pd
 import FinanceDataReader as fdr
 from pykrx import stock
 from scipy.signal import find_peaks
+
 try:
     import pandas_ta as ta
-except Exception:  # Python 3.14 환경에서는 pandas-ta 설치가 실패할 수 있음
+except ImportError:  # Python 3.14 환경에서는 pandas-ta 설치가 실패할 수 있음
     ta = None
 
-from datetime import datetime, timedelta
+logger = logging.getLogger("calculatechart")
+logging.basicConfig(level=logging.INFO)
 
-# 최상단(app 선언 부근)에 전역 캐시 변수 추가
-RECOMMEND_CACHE = {
+# ── 환경변수 설정 ────────────────────────────────
+# 추천 종목 샘플링 수 (기본 220, 환경변수로 조정 가능)
+RECOMMEND_SAMPLE_SIZE = int(os.environ.get("RECOMMEND_SAMPLE_SIZE", "220"))
+# pykrx 호출 타임아웃 (초)
+PYKRX_TIMEOUT_SEC = int(os.environ.get("PYKRX_TIMEOUT_SEC", "30"))
+
+# pykrx는 동기 라이브러리이므로 ThreadPoolExecutor를 통해 타임아웃 제어
+_executor = ThreadPoolExecutor(max_workers=4)
+
+# 추천 결과를 메모리에 캐싱 + asyncio.Lock으로 동시 접근 보호
+RECOMMEND_CACHE: dict = {
     "data": None,
-    "last_updated": None
+    "last_updated": None,
+    "as_of": None,
 }
+_cache_lock = asyncio.Lock()
+
+
+async def _run_with_timeout(fn, *args, timeout: int = PYKRX_TIMEOUT_SEC):
+    """동기 함수(pykrx)를 ThreadPool에서 실행하고 타임아웃을 적용"""
+    loop = asyncio.get_event_loop()
+    return await asyncio.wait_for(
+        loop.run_in_executor(_executor, partial(fn, *args)),
+        timeout=timeout,
+    )
 
 
 app = FastAPI(title="주식 분석 시스템 API")
 
+# CORS: allow_credentials=True 와 allow_origins=["*"] 는 브라우저 스펙 위반이므로
+# 자격증명이 필요하지 않은 API는 credentials=False 로 두고 "*" 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -35,7 +65,8 @@ def _yyyymmdd(d: date) -> str:
     return d.strftime("%Y%m%d")
 
 
-def _best_business_day(max_back_days: int = 15) -> str:
+def _best_business_day_sync(max_back_days: int = 15) -> str:
+    """동기 버전 (ThreadPool에서 호출)"""
     today = date.today()
     for i in range(max_back_days):
         d = today - timedelta(days=i)
@@ -44,6 +75,10 @@ def _best_business_day(max_back_days: int = 15) -> str:
         if tickers:
             return day
     return _yyyymmdd(today)
+
+
+async def _best_business_day(max_back_days: int = 15) -> str:
+    return await _run_with_timeout(_best_business_day_sync, max_back_days)
 
 
 def _load_listing() -> pd.DataFrame:
@@ -240,7 +275,18 @@ def _detect_box_range(df: pd.DataFrame) -> dict:
     return {"is_box": False}
 
 
-def _load_stock_for_score(ticker: str, end_day: str) -> tuple[pd.DataFrame, list[float], list[float], int, dict]:
+def _fetch_ohlcv_sync(start: str, end: str, ticker: str) -> pd.DataFrame:
+    """pykrx 동기 호출 래퍼 (ThreadPool에서 실행됨)"""
+    return stock.get_market_ohlcv(start, end, ticker)
+
+
+async def _fetch_ohlcv(start: str, end: str, ticker: str) -> pd.DataFrame:
+    """pykrx 호출에 타임아웃 적용"""
+    return await _run_with_timeout(_fetch_ohlcv_sync, start, end, ticker)
+
+
+def _load_stock_for_score_sync(ticker: str, end_day: str) -> tuple[pd.DataFrame, list[float], list[float], int, dict]:
+    """추천 루프에서 사용하는 동기 버전 (ThreadPool에서 호출)"""
     end_d = date.fromisoformat(f"{end_day[:4]}-{end_day[4:6]}-{end_day[6:8]}")
     start_d = end_d - timedelta(days=210)
     raw = stock.get_market_ohlcv(_yyyymmdd(start_d), end_day, ticker)
@@ -259,7 +305,7 @@ def read_root():
 
 
 @app.get("/api/stock/{ticker_or_name}")
-def get_stock_data(
+async def get_stock_data(
     ticker_or_name: str,
     start_date: str | None = Query(None, description="YYYYMMDD 또는 YYYY-MM-DD"),
     end_date: str | None = Query(None, description="YYYYMMDD 또는 YYYY-MM-DD"),
@@ -271,7 +317,7 @@ def get_stock_data(
         end = _normalize_input_date(end_date, end_d)
 
         ticker, stock_name = _resolve_ticker(ticker_or_name)
-        raw = stock.get_market_ohlcv(start, end, ticker)
+        raw = await _fetch_ohlcv(start, end, ticker)
         if raw.empty:
             return {"error": "해당 기간의 데이터가 없거나 종목 코드/이름이 잘못되었습니다."}
 
@@ -292,97 +338,109 @@ def get_stock_data(
             "score_breakdown": score_breakdown,
             "box_range": box_range,
         }
+    except asyncio.TimeoutError:
+        logger.warning("주가 데이터 조회 타임아웃: %s", ticker_or_name)
+        return {"error": f"주가 데이터 조회 시간 초과 ({PYKRX_TIMEOUT_SEC}초). 잠시 후 다시 시도해주세요."}
     except Exception as e:
+        logger.exception("데이터 조회 실패")
         return {"error": f"데이터 조회 중 오류 발생: {str(e)}"}
 
 
+def _compute_recommendations_sync(day: str, listing: pd.DataFrame, sample_size: int) -> list[dict]:
+    """추천 종목 스코어링 (동기, ThreadPool에서 실행)"""
+    tickers = listing["ticker"].tolist()[:sample_size]
+    ranked = []
+    for tk in tickers:
+        try:
+            _df, support, resistance, score, breakdown = _load_stock_for_score_sync(tk, day)
+            ranked.append(
+                {
+                    "ticker": tk,
+                    "stock_name": str(listing.loc[listing["ticker"] == tk, "name"].iloc[0]) if (listing["ticker"] == tk).any() else tk,
+                    "score": score,
+                    "support_lines": support,
+                    "resistance_lines": resistance,
+                    "score_breakdown": breakdown,
+                }
+            )
+        except Exception as ex:
+            logger.warning("종목 로드 실패 %s: %s", tk, ex)
+            continue
+    ranked.sort(key=lambda x: x["score"], reverse=True)
+    return ranked
+
+
 @app.get("/api/recommendations")
-def get_recommendations(limit: int = Query(10, ge=1, le=50)):
+async def get_recommendations(limit: int = Query(10, ge=1, le=50)):
     """
     스코어 기반 추천 Top N.
-    성능을 위해 코스피/코스닥 종목 중 앞쪽 220개를 샘플링해서 평가합니다.
+    성능을 위해 코스피/코스닥 종목 중 앞쪽 N개를 샘플링해서 평가합니다.
+    (N = 환경변수 RECOMMEND_SAMPLE_SIZE, 기본값 220)
     최근 계산 결과를 1시간(3600초) 동안 메모리에 캐싱하여 응답 속도를 높입니다.
     """
     global RECOMMEND_CACHE
     now = datetime.now()
 
-    # 1. 캐시 확인: 데이터가 존재하고, 계산된 지 1시간(3600초)이 지나지 않았다면 즉시 반환
-    if RECOMMEND_CACHE["data"] is not None and RECOMMEND_CACHE["last_updated"] is not None:
-        if (now - RECOMMEND_CACHE["last_updated"]).total_seconds() < 3600:
-            cached_ranked = RECOMMEND_CACHE["data"]
-            return {
-                "as_of": RECOMMEND_CACHE["as_of"],
-                "count": len(cached_ranked),
-                "top": cached_ranked[:limit], # 캐시된 전체 리스트에서 요청한 limit만큼만 잘라서 반환
-                "cached": True,
-                "last_updated": RECOMMEND_CACHE["last_updated"].strftime("%Y-%m-%d %H:%M:%S")
-            }
+    async with _cache_lock:
+        # 1. 캐시 확인
+        if RECOMMEND_CACHE["data"] is not None and RECOMMEND_CACHE["last_updated"] is not None:
+            if (now - RECOMMEND_CACHE["last_updated"]).total_seconds() < 3600:
+                cached_ranked = RECOMMEND_CACHE["data"]
+                return {
+                    "as_of": RECOMMEND_CACHE["as_of"],
+                    "count": len(cached_ranked),
+                    "top": cached_ranked[:limit],
+                    "cached": True,
+                    "last_updated": RECOMMEND_CACHE["last_updated"].strftime("%Y-%m-%d %H:%M:%S"),
+                }
 
-    # 2. 캐시가 없거나 만료되었다면 새로 220개 종목 계산 진행
+    # 2. 캐시가 없거나 만료 → 새로 계산 (lock 밖에서 실행해 다른 요청 차단 방지)
     try:
-        day = _best_business_day()
+        day = await _best_business_day()
         listing = _load_listing()
-        tickers = listing["ticker"].tolist()[:220]
+        ranked = await _run_with_timeout(
+            _compute_recommendations_sync, day, listing, RECOMMEND_SAMPLE_SIZE,
+            timeout=PYKRX_TIMEOUT_SEC * RECOMMEND_SAMPLE_SIZE // 10,  # 전체 계산은 넉넉하게
+        )
 
-        ranked = []
-        for tk in tickers:
-            try:
-                _df, support, resistance, score, breakdown = _load_stock_for_score(tk, day)
-                ranked.append(
-                    {
-                        "ticker": tk,
-                        "stock_name": str(listing.loc[listing["ticker"] == tk, "name"].iloc[0]) if (listing["ticker"] == tk).any() else tk,
-                        "score": score,
-                        "support_lines": support,
-                        "resistance_lines": resistance,
-                        "score_breakdown": breakdown,
-                    }
-                )
-            except Exception:
-                continue
-
-        # 점수 순으로 정렬
-        ranked.sort(key=lambda x: x["score"], reverse=True)
-
-        # 3. 계산이 끝난 전체 리스트(ranked)를 캐시에 덮어쓰기
-        RECOMMEND_CACHE["data"] = ranked
-        RECOMMEND_CACHE["last_updated"] = now
-        RECOMMEND_CACHE["as_of"] = day
+        async with _cache_lock:
+            RECOMMEND_CACHE["data"] = ranked
+            RECOMMEND_CACHE["last_updated"] = now
+            RECOMMEND_CACHE["as_of"] = day
 
         return {
             "as_of": day,
             "count": len(ranked),
             "top": ranked[:limit],
             "cached": False,
-            "last_updated": now.strftime("%Y-%m-%d %H:%M:%S")
+            "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
         }
+    except asyncio.TimeoutError:
+        logger.warning("추천 계산 타임아웃")
+        return {"error": "추천 종목 계산 시간 초과. 잠시 후 다시 시도해주세요."}
     except Exception as e:
+        logger.exception("추천 계산 실패")
         return {"error": f"추천 계산 중 오류 발생: {str(e)}"}
     
 
-# [수정포인트 1] 주소창에서 받을 변수명을 {ticker_or_name}으로 변경
 @app.get("/api/stock/{ticker_or_name}/predict")
-# [수정포인트 2] 함수가 받는 변수명도 ticker_or_name으로 변경
-def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: str | None = None):
+async def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: str | None = None):
     try:
         try:
-            # 이제 위에서 받은 ticker_or_name을 여기서 정상적으로 사용할 수 있습니다!
             ticker, stock_name = _resolve_ticker(ticker_or_name)
         except Exception:
             ticker = ticker_or_name
             stock_name = ticker_or_name
 
-        import datetime as dt
-        end_d = dt.datetime.today()
-        start_d = end_d - dt.timedelta(days=365)
+        end_d = datetime.today()
+        start_d = end_d - timedelta(days=365)
         start_str = start_d.strftime("%Y%m%d")
         end_str = end_d.strftime("%Y%m%d")
 
-        raw = stock.get_market_ohlcv(start_str, end_str, ticker)
+        raw = await _fetch_ohlcv(start_str, end_str, ticker)
         if raw.empty:
             return {"error": "데이터 없음"}
 
-        # ← 기존 df.columns = [...] 전체 삭제하고 이걸로 교체
         df = _standardize_ohlcv(raw)
 
         # pandas_ta 컬럼명으로 수동 계산 (df.ta 액세서 대신)
@@ -418,11 +476,18 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
         bb_up  = bb_mid + 2 * bb_std
         bb_dn  = bb_mid - 2 * bb_std
 
+        # 추가 이동평균 (Pine Script 계단지표 연동)
+        sma5   = close.rolling(5).mean()
+        sma112 = close.rolling(112).mean()
+        sma224 = close.rolling(224).mean()
+
         cur       = float(close.iloc[-1])
         signals   = []
         score     = 50
 
-        # 1. 이동평균
+        # ──────────────────────────────────────────────
+        # 1. 이동평균 (기존)
+        # ──────────────────────────────────────────────
         if not sma120.dropna().empty:
             s20, s60, s120 = float(sma20.iloc[-1]), float(sma60.iloc[-1]), float(sma120.iloc[-1])
             if cur > s20 > s60 > s120:
@@ -432,7 +497,9 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
                 score -= 15
                 signals.append({"type": "negative", "label": "역배열 (하락 추세)", "desc": "완연한 하락 추세입니다. 섣부른 매수는 위험합니다."})
 
-        # 2. RSI
+        # ──────────────────────────────────────────────
+        # 2. RSI (기존)
+        # ──────────────────────────────────────────────
         if rsi_series is not None and not rsi_series.dropna().empty:
             rsi = float(rsi_series.iloc[-1])
             if rsi <= 30:
@@ -444,7 +511,9 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
             else:
                 signals.append({"type": "neutral", "label": f"RSI 중립 ({rsi:.1f})", "desc": "과매도/과매수 구간이 아닙니다."})
 
-        # 3. MACD
+        # ──────────────────────────────────────────────
+        # 3. MACD (기존)
+        # ──────────────────────────────────────────────
         if not histogram.dropna().empty and len(histogram.dropna()) >= 2:
             hist_now  = float(histogram.iloc[-1])
             hist_prev = float(histogram.iloc[-2])
@@ -455,7 +524,9 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
                 score -= 10
                 signals.append({"type": "negative", "label": "MACD 매도 신호", "desc": "하락 모멘텀이 강해지고 있습니다."})
 
-        # 4. 볼린저 밴드
+        # ──────────────────────────────────────────────
+        # 4. 볼린저 밴드 (기존)
+        # ──────────────────────────────────────────────
         if not bb_up.dropna().empty:
             up_val, dn_val = float(bb_up.iloc[-1]), float(bb_dn.iloc[-1])
             if cur <= dn_val * 1.02:
@@ -465,6 +536,111 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
                 score -= 10
                 signals.append({"type": "negative", "label": "볼린저 상단 저항", "desc": "통계적 천장 구간에 도달했습니다."})
 
+        # ══════════════════════════════════════════════
+        # 5. 수박지표 연동: BB 스퀴즈 + 이평선 수렴도
+        # (Pine Script 수박지표의 핵심 로직을 Python으로 재현)
+        # ══════════════════════════════════════════════
+        bb_width_pct = (bb_up - bb_dn) / bb_mid * 100
+        bb_width_min_20 = bb_width_pct.rolling(20).min()
+        # 스퀴즈: 현재 밴드폭이 최근 20봉 최소폭의 1.3배 이내
+        is_squeeze = False
+        if not bb_width_pct.dropna().empty and not bb_width_min_20.dropna().empty:
+            is_squeeze = float(bb_width_pct.iloc[-1]) <= float(bb_width_min_20.iloc[-1]) * 1.3
+
+        # 이평선 수렴도: 5/20/60/224일 이평의 최대-최소 / 현재가 (%)
+        ma_convergence = None
+        if not sma5.dropna().empty and not sma224.dropna().empty:
+            ma_vals = [float(sma5.iloc[-1]), float(sma20.iloc[-1]),
+                       float(sma60.iloc[-1]), float(sma224.iloc[-1])]
+            ma_spread = max(ma_vals) - min(ma_vals)
+            ma_convergence = ma_spread / cur * 100
+
+        # 이격도 (20일 기준)
+        disparity_20 = (cur / float(sma20.iloc[-1])) * 100 - 100 if not sma20.dropna().empty else None
+
+        # 수박 신호 = 스퀴즈 + 수렴 + 이격도 근접
+        if is_squeeze and ma_convergence is not None and ma_convergence < 2.0:
+            if disparity_20 is not None and abs(disparity_20) < 3.0:
+                score += 10
+                label = "수박 신호 (스퀴즈+수렴)"
+                desc = f"BB 스퀴즈 + 이평선 수렴(편차 {ma_convergence:.1f}%) 감지. 추세 전환 임박 가능성."
+                # 224일선 위면 강한 수박
+                if not sma224.dropna().empty and cur > float(sma224.iloc[-1]):
+                    score += 5
+                    label = "강한 수박 (224일선 위)"
+                    desc += " 224일선 위에서 발생한 강한 신호입니다."
+                signals.append({"type": "positive", "label": label, "desc": desc})
+        elif is_squeeze:
+            signals.append({"type": "neutral", "label": "BB 스퀴즈 감지",
+                            "desc": "볼린저밴드가 수축 중입니다. 변동성 확대 임박."})
+
+        # ══════════════════════════════════════════════
+        # 6. 계단지표 연동: ATR 기반 계단형 지지레벨 판단
+        # (Pine Script 계단지표의 핵심 로직을 Python으로 재현)
+        # ══════════════════════════════════════════════
+        high = pd.to_numeric(df["high"], errors="coerce")
+        low  = pd.to_numeric(df["low"], errors="coerce")
+        # ATR 계산 (14일)
+        tr = pd.concat([
+            high - low,
+            (high - close.shift(1)).abs(),
+            (low - close.shift(1)).abs(),
+        ], axis=1).max(axis=1)
+        atr14 = tr.rolling(14).mean()
+
+        staircase_signal = None
+        if not atr14.dropna().empty and len(close) >= 20:
+            atr_val = float(atr14.iloc[-1])
+            grid_size = atr_val * 0.5  # step_atr_mult 기본값 0.5
+            if grid_size > 0:
+                # 최근 20봉에서 계단 레벨 변화 추적
+                close_arr = close.tail(20).values
+                grids = np.floor(close_arr / grid_size) * grid_size
+                # 연속 동일 레벨 카운트
+                current_level = grids[-1]
+                count = 1
+                for i in range(len(grids) - 2, -1, -1):
+                    if abs(grids[i] - current_level) < grid_size * 0.001:
+                        count += 1
+                    else:
+                        break
+                prev_level = grids[0]  # 20봉 전 레벨
+
+                if count >= 3:  # step_confirm 기본값 3
+                    if current_level > prev_level + grid_size * 0.5:
+                        staircase_signal = "up"
+                    elif current_level < prev_level - grid_size * 0.5:
+                        staircase_signal = "down"
+
+        if staircase_signal == "up":
+            score += 5
+            signals.append({"type": "positive", "label": "상승 계단 형성",
+                            "desc": "ATR 기반 지지레벨이 상향 이동 중. 상승 추세 확인."})
+        elif staircase_signal == "down":
+            score -= 5
+            signals.append({"type": "negative", "label": "하락 계단 형성",
+                            "desc": "ATR 기반 지지레벨이 하향 이동 중. 하락 추세 주의."})
+
+        # ══════════════════════════════════════════════
+        # 7. 추천 매도가 (단기/장기)
+        # (Pine Script 계단지표 v2에서 추가한 로직)
+        # ══════════════════════════════════════════════
+        sell_short_price = None
+        sell_long_price = None
+
+        # 단기 매도가: BB 상단 (20일, 2배수)
+        if not bb_up.dropna().empty:
+            sell_short_price = int(float(bb_up.iloc[-1]))
+
+        # 장기 매도가: 최근 60봉 최고가 + ATR * 1.5
+        if not atr14.dropna().empty and len(high) >= 60:
+            highest_60 = float(high.tail(60).max())
+            sell_long_raw = highest_60 + atr_val * 1.5
+            sell_long_price = int(max(sell_long_raw, cur + atr_val * 3))
+
+        # ──────────────────────────────────────────────
+        # 최종 점수 및 전망
+        # ──────────────────────────────────────────────
         final_score = max(0, min(100, score))
 
         if final_score >= 70:
@@ -477,7 +653,7 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
             outlook_short, outlook_mid = "하락 주의", "조정 가능성 존재"
             summary = "하락 지표가 우세합니다. 리스크 관리에 유의하세요."
 
-        return {
+        result = {
             "ticker": ticker,
             "stock_name": stock_name,
             "current_price": int(cur),
@@ -486,7 +662,18 @@ def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: 
             "outlook_mid": outlook_mid,
             "summary": summary,
             "signals": signals,
+            "sell_targets": {
+                "short_term": sell_short_price,
+                "long_term": sell_long_price,
+                "short_term_desc": "단기 매도 목표 (BB 상단 기반)" if sell_short_price else None,
+                "long_term_desc": "장기 매도 목표 (60일 최고가+ATR 기반)" if sell_long_price else None,
+            },
         }
+        return result
 
+    except asyncio.TimeoutError:
+        logger.warning("예측 데이터 조회 타임아웃: %s", ticker_or_name)
+        return {"error": f"예측 데이터 조회 시간 초과 ({PYKRX_TIMEOUT_SEC}초). 잠시 후 다시 시도해주세요."}
     except Exception as e:
+        logger.exception("예측 실패")
         return {"error": f"예측 중 오류 발생: {str(e)}"}

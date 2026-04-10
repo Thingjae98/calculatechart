@@ -7,7 +7,7 @@ export type Candle = {
   volume?: number
 }
 
-type RawCandle = {
+export type RawCandle = {
   time?: string
   date?: string
   open: number
@@ -17,15 +17,21 @@ type RawCandle = {
   volume?: number
 }
 
+export type BoxRange = {
+  is_box: boolean
+  top?: number
+  bottom?: number
+}
+
 export type OhlcvResponse = {
   ticker: string
-  data: unknown
+  data: RawCandle[]
   stock_name?: string
-  support_lines?: unknown
-  resistance_lines?: unknown
-  box_range?: unknown
+  support_lines?: number[]
+  resistance_lines?: number[]
+  box_range?: BoxRange
   score?: number
-  score_breakdown?: unknown
+  score_breakdown?: Record<string, number>
   error?: string
 }
 
@@ -40,6 +46,13 @@ export interface PredictionSignal {
   desc: string
 }
 
+export interface SellTargets {
+  short_term: number | null
+  long_term: number | null
+  short_term_desc: string | null
+  long_term_desc: string | null
+}
+
 export interface PredictionResult {
   ticker: string
   stock_name: string
@@ -49,6 +62,7 @@ export interface PredictionResult {
   outlook_mid: string
   summary: string
   signals: PredictionSignal[]
+  sell_targets?: SellTargets
   error?: string
 }
 
@@ -122,15 +136,15 @@ export async function fetchOhlcv(args: {
     ? (body.resistance_lines as unknown[]).map((v) => Number(v)).filter((n) => Number.isFinite(n))
     : []
 
-  const boxRangeRaw = body.box_range as Record<string, unknown> | undefined
-  const boxRange =
+  const boxRangeRaw = body.box_range as Partial<BoxRange> | undefined
+  const boxRange: BoxRange =
     boxRangeRaw && typeof boxRangeRaw.is_box === 'boolean'
       ? {
-          is_box: boxRangeRaw.is_box as boolean,
-          top: typeof boxRangeRaw.top === 'number' ? (boxRangeRaw.top as number) : undefined,
-          bottom: typeof boxRangeRaw.bottom === 'number' ? (boxRangeRaw.bottom as number) : undefined,
+          is_box: boxRangeRaw.is_box,
+          top: typeof boxRangeRaw.top === 'number' ? boxRangeRaw.top : undefined,
+          bottom: typeof boxRangeRaw.bottom === 'number' ? boxRangeRaw.bottom : undefined,
         }
-      : { is_box: false as const }
+      : { is_box: false }
 
   return {
     ticker: body.ticker,
@@ -144,25 +158,23 @@ export async function fetchOhlcv(args: {
   }
 }
 
-export async function fetchRecommendations(limit = 10) {
+function isRecommendationItem(x: unknown): x is RecommendationItem {
+  if (!x || typeof x !== 'object') return false
+  const r = x as Record<string, unknown>
+  return (
+    typeof r.ticker === 'string' &&
+    typeof r.stock_name === 'string' &&
+    typeof r.score === 'number'
+  )
+}
+
+export async function fetchRecommendations(limit = 10): Promise<RecommendationItem[]> {
   const res = await fetch(buildApiUrl(`/api/recommendations?limit=${limit}`), { method: 'GET' })
   const body = (await res.json()) as { top?: unknown; error?: string }
   if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`)
   if (body?.error) throw new Error(body.error)
   if (!Array.isArray(body?.top)) return []
 
-  return body.top
-    .map((x) => x as Record<string, unknown>)
-    .filter((x) => typeof x.ticker === 'string' && typeof x.stock_name === 'string' && typeof x.score === 'number')
-    .map(
-      (x) =>
-        ({
-          ticker: x.ticker as string,
-          stock_name: x.stock_name as string,
-          score: x.score as number,
-        }) as RecommendationItem,
-    )
-
-  
+  return body.top.filter(isRecommendationItem)
 }
 

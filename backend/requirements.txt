@@ -2,5 +2,6 @@ fastapi
 uvicorn[standard]
 pykrx
 pandas
+numpy
 scipy
 finance-datareader

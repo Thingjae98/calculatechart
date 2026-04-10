@@ -1,9 +1,8 @@
 import './App.css'
 import { useEffect, useMemo, useState } from 'react'
-import type { Candle, RecommendationItem } from './lib/api'
+import type { BoxRange, Candle, PredictionResult, RecommendationItem } from './lib/api'
 import { CandleChart } from './components/CandleChart'
 import { fetchOhlcv, fetchRecommendations, fetchPrediction } from './lib/api'
-import type { PredictionResult } from './lib/api'
 
 function App() {
   const [ticker, setTicker] = useState('005930')
@@ -12,6 +11,7 @@ function App() {
   const [startDate, setStartDate] = useState(() => toYmd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 90)))
   const [prediction, setPrediction] = useState<PredictionResult | null>(null)
   const [predLoading, setPredLoading] = useState(false)
+  const [predError, setPredError] = useState<string | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -20,12 +20,19 @@ function App() {
   const [resistanceLines, setResistanceLines] = useState<number[]>([])
   const [stockName, setStockName] = useState('')
   const [chartScore, setChartScore] = useState(0)
-  const [boxRange, setBoxRange] = useState<{ is_box: boolean; top?: number; bottom?: number }>({ is_box: false })
+  const [boxRange, setBoxRange] = useState<BoxRange>({ is_box: false })
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([])
+  const [recError, setRecError] = useState<string | null>(null)
 
   const canSubmit = useMemo(() => {
     const t = ticker.trim()
-    return t.length > 0 && startDate.trim().length > 0 && endDate.trim().length > 0
+    const s = startDate.trim()
+    const e = endDate.trim()
+    if (!t || !s || !e) return false
+    // YYYY-MM-DD 또는 YYYYMMDD 일 때 문자열 비교로도 전후 판단 가능하지만,
+    // 구분자 없는 쪽과 섞일 수 있어 숫자만 남겨 비교
+    const norm = (v: string) => v.replace(/-/g, '')
+    return norm(s) <= norm(e)
   }, [ticker, startDate, endDate])
 
   async function load() {
@@ -44,7 +51,7 @@ function App() {
       setResistanceLines(result.resistance_lines ?? [])
       setStockName(result.stock_name ?? ticker.trim())
       setChartScore(result.score ?? 0)
-      setBoxRange((result as any).box_range ?? { is_box: false })
+      setBoxRange(result.box_range ?? { is_box: false })
     } catch (err) {
       setError(err instanceof Error ? err.message : '요청 중 오류가 발생했습니다.')
       setCandles([])
@@ -60,22 +67,26 @@ function App() {
 
   async function onPredict() {
     setPredLoading(true)
+    setPredError(null)
     try {
       const result = await fetchPrediction(ticker.trim(), startDate, endDate)
       setPrediction(result)
-    } catch {
+    } catch (err) {
       setPrediction(null)
+      setPredError(err instanceof Error ? err.message : '예측 요청 실패')
     } finally {
       setPredLoading(false)
     }
   }
 
   async function loadRecommendations() {
+    setRecError(null)
     try {
       const top = await fetchRecommendations(10)
       setRecommendations(top)
-    } catch {
+    } catch (err) {
       setRecommendations([])
+      setRecError(err instanceof Error ? err.message : '추천 목록 로드 실패')
     }
   }
 
@@ -135,6 +146,8 @@ function App() {
 
       <main className="main">
         {error ? <div className="alert">오류: {error}</div> : null}
+        {predError ? <div className="alert">예측 오류: {predError}</div> : null}
+        {recError ? <div className="alert">추천 오류: {recError}</div> : null}
         <div className="card">
           <div className="cardHeader">
             <div className="meta">
@@ -186,6 +199,28 @@ function App() {
                 </div>
               ))}
             </div>
+
+            {prediction.sell_targets && (prediction.sell_targets.short_term || prediction.sell_targets.long_term) && (
+              <div style={{ marginTop: 16, padding: '12px 0', borderTop: '1px solid #2d3748' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0', marginBottom: 8 }}>추천 매도가</div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  {prediction.sell_targets.short_term && (
+                    <div style={{ flex: 1, minWidth: 180, padding: 12, borderRadius: 8, backgroundColor: 'rgba(249, 115, 22, 0.15)', border: '1px solid rgba(249, 115, 22, 0.3)' }}>
+                      <div style={{ fontSize: 12, color: '#fb923c', marginBottom: 4 }}>📌 단기 매도</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: '#fdba74' }}>{prediction.sell_targets.short_term.toLocaleString()}원</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{prediction.sell_targets.short_term_desc}</div>
+                    </div>
+                  )}
+                  {prediction.sell_targets.long_term && (
+                    <div style={{ flex: 1, minWidth: 180, padding: 12, borderRadius: 8, backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                      <div style={{ fontSize: 12, color: '#f87171', marginBottom: 4 }}>🎯 장기 매도</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: '#fca5a5' }}>{prediction.sell_targets.long_term.toLocaleString()}원</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{prediction.sell_targets.long_term_desc}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

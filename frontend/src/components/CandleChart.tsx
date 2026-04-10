@@ -4,6 +4,7 @@ import {
   createChart,
   type IChartApi,
   type IPriceLine,
+  type ISeriesApi,
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -17,6 +18,8 @@ export interface Candle {
   volume?: number;
 }
 
+const toMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e))
+
 export function CandleChart(props: {
   candles: Candle[]
   supportLines?: number[]
@@ -25,7 +28,7 @@ export function CandleChart(props: {
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const chartRef = useRef<IChartApi | null>(null)
-  const seriesRef = useRef<any>(null)
+  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const supportPriceLinesRef = useRef<IPriceLine[]>([])
   const resistancePriceLinesRef = useRef<IPriceLine[]>([])
   const boxPriceLinesRef = useRef<IPriceLine[]>([])
@@ -37,17 +40,18 @@ export function CandleChart(props: {
     try {
       if (!props.candles || !Array.isArray(props.candles) || props.candles.length === 0) return []
 
-      const validCandles = props.candles.map((c: any) => {
-        const rawTime = String(c.time || '');
-        const timeStr = rawTime.substring(0, 10); 
+      const parsePrice = (v: unknown): number => Number(String(v ?? '').replace(/,/g, ''));
 
-        const parsePrice = (v: any) => Number(String(v).replace(/,/g, ''));
+      const validCandles = props.candles.map((c: Candle) => {
+        const rawTime = typeof c.time === 'string' ? c.time : '';
+        const timeStr = rawTime.substring(0, 10);
+
         const open = parsePrice(c.open);
         const high = parsePrice(c.high);
         const low = parsePrice(c.low);
         const close = parsePrice(c.close);
 
-        if (isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close) || !/^\d{4}-\d{2}-\d{2}$/.test(timeStr)) {
+        if (!Number.isFinite(open) || !Number.isFinite(high) || !Number.isFinite(low) || !Number.isFinite(close) || !/^\d{4}-\d{2}-\d{2}$/.test(timeStr)) {
           return null;
         }
         return { time: timeStr, open, high, low, close };
@@ -68,8 +72,8 @@ export function CandleChart(props: {
       }
 
       return uniqueCandles;
-    } catch (e: any) {
-      setErrorMsg(e.message);
+    } catch (e: unknown) {
+      setErrorMsg(toMessage(e));
       return [];
     }
   }, [props.candles])
@@ -104,8 +108,8 @@ export function CandleChart(props: {
         wickUpColor: '#22c55e',
         wickDownColor: '#ef4444',
       })
-    } catch (e: any) {
-      setErrorMsg("차트 라이브러리 초기화 실패: " + e.message)
+    } catch (e: unknown) {
+      setErrorMsg("차트 라이브러리 초기화 실패: " + toMessage(e))
     }
 
     return () => {
@@ -124,9 +128,9 @@ export function CandleChart(props: {
     try {
       seriesRef.current.setData(seriesData)
       chartRef.current.timeScale().fitContent()
-      setErrorMsg(null) 
-    } catch (err: any) {
-      setErrorMsg(`차트에 데이터를 그리는 중 에러 발생!\n내용: ${err.message}`)
+      setErrorMsg(null)
+    } catch (err: unknown) {
+      setErrorMsg(`차트에 데이터를 그리는 중 에러 발생!\n내용: ${toMessage(err)}`)
     }
   }, [seriesData])
 
@@ -142,7 +146,8 @@ export function CandleChart(props: {
       resistancePriceLinesRef.current = []
       boxPriceLinesRef.current = []
 
-      const isValidPrice = (p: any) => typeof p === 'number' && !isNaN(p) && p > 0
+      const isValidPrice = (p: unknown): p is number =>
+        typeof p === 'number' && Number.isFinite(p) && p > 0
 
       for (const price of props.supportLines ?? []) {
         if (isValidPrice(price)) {
@@ -162,14 +167,18 @@ export function CandleChart(props: {
 
       const box = props.boxRange
       if (box?.is_box && isValidPrice(box.top) && isValidPrice(box.bottom)) {
-        for (const [price, title] of [[box.top, '박스 상단'], [box.bottom, '박스 하단']] as const) {
+        const boxLines: Array<[number, string]> = [
+          [box.top, '박스 상단'],
+          [box.bottom, '박스 하단'],
+        ]
+        for (const [price, title] of boxLines) {
           boxPriceLinesRef.current.push(
-            series.createPriceLine({ price: price as number, color: '#f59e0b', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title })
+            series.createPriceLine({ price, color: '#f59e0b', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title })
           )
         }
       }
-    } catch (e: any) {
-      console.error("라인 오버레이 실패:", e)
+    } catch (e: unknown) {
+      console.error("라인 오버레이 실패:", toMessage(e))
     }
   }, [props.supportLines, props.resistanceLines, props.boxRange])
 
