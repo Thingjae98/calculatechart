@@ -86,6 +86,7 @@ export function CandleChart(props: {
   supportLines?: number[]
   resistanceLines?: number[]
   boxRange?: { is_box: boolean; top?: number; bottom?: number }
+  sellTargets?: { short_term?: number | null; long_term?: number | null }
   onLoadMore?: () => void
   freshLoadId?: number
   predDays?: number
@@ -99,6 +100,7 @@ export function CandleChart(props: {
   const supportPriceLinesRef = useRef<IPriceLine[]>([])
   const resistancePriceLinesRef = useRef<IPriceLine[]>([])
   const boxPriceLinesRef = useRef<IPriceLine[]>([])
+  const sellPriceLinesRef = useRef<IPriceLine[]>([])
 
   const onLoadMoreRef = useRef<(() => void) | undefined>(undefined)
   const loadMoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -329,9 +331,12 @@ export function CandleChart(props: {
         series.removePriceLine(line)
       for (const line of boxPriceLinesRef.current)
         series.removePriceLine(line)
+      for (const line of sellPriceLinesRef.current)
+        series.removePriceLine(line)
       supportPriceLinesRef.current = []
       resistancePriceLinesRef.current = []
       boxPriceLinesRef.current = []
+      sellPriceLinesRef.current = []
 
       const isValid = (p: unknown): p is number =>
         typeof p === 'number' && Number.isFinite(p) && p > 0
@@ -384,10 +389,37 @@ export function CandleChart(props: {
           )
         }
       }
+
+      // 매도 목표가 라인
+      const sell = props.sellTargets
+      if (sell?.short_term && isValid(sell.short_term)) {
+        sellPriceLinesRef.current.push(
+          series.createPriceLine({
+            price: sell.short_term,
+            color: '#f97316',
+            lineWidth: 2,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: '단기 매도',
+          }),
+        )
+      }
+      if (sell?.long_term && isValid(sell.long_term)) {
+        sellPriceLinesRef.current.push(
+          series.createPriceLine({
+            price: sell.long_term,
+            color: '#ef4444',
+            lineWidth: 2,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: '중장기 매도',
+          }),
+        )
+      }
     } catch (e) {
       console.error('라인 오버레이 실패:', toMessage(e))
     }
-  }, [props.supportLines, props.resistanceLines, props.boxRange])
+  }, [props.supportLines, props.resistanceLines, props.boxRange, props.sellTargets])
 
   const predDaysLabel = props.predDays ?? predictedData.length
 

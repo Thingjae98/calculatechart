@@ -255,18 +255,24 @@ def _generate_predicted_candles(
     sma20_val: float | None,
     bb_upper: float | None,
     bb_lower: float | None,
+    is_squeeze: bool = False,
+    staircase_signal: str | None = None,
+    staircase_grid_size: float = 0.0,
     n_days: int = 7,
 ) -> list[dict]:
     """
     기술적 지표 기반 미래 일봉 생성 (30일까지 지원).
-    - 추세 편향: prediction_score 기반
-    - 평균 회귀: SMA20 방향으로 끌림
-    - 변동성: ATR 기반 일별 범위
-    - 타겟 수렴: 단기/장기 매도가 방향
-    - 볼린저 밴드 범위 제약: BB 밖으로 벗어나지 않도록
-    - 일수가 길어질수록 confidence decay 적용
+
+    **예측에 반영하는 지표:**
+    1. prediction_score (MA 정배열, RSI, MACD, BB, 수박, 계단 종합)
+    2. SMA20 평균 회귀 — 가격이 SMA에서 멀수록 당김
+    3. BB 범위 제약 — 상/하단 밖으로 벗어나지 않음
+    4. 수박지표(BB 스퀴즈) — 스퀴즈 감지 시 초기 변동성 축소 → 후반 확대 (추세 전환)
+    5. 계단지표(ATR 스텝) — 상승/하락 계단 방향으로 추가 편향 + 그리드 단위 스냅
+    6. 단기/장기 매도가 수렴
+    7. Confidence decay — 시간이 갈수록 추세 영향 줄이고 평균 회귀 강화
     """
-    # 추세 편향
+    # ── 기본 추세 편향 ──
     if prediction_score >= 65:
         bias = atr_val * 0.25
     elif prediction_score >= 50:
@@ -275,6 +281,12 @@ def _generate_predicted_candles(
         bias = -atr_val * 0.05
     else:
         bias = -atr_val * 0.25
+
+    # ── 계단지표 편향 추가 ──
+    if staircase_signal == "up":
+        bias += atr_val * 0.1
+    elif staircase_signal == "down":
+        bias -= atr_val * 0.1
 
     candles = []
     prev_close = last_close
@@ -286,25 +298,31 @@ def _generate_predicted_candles(
             d += timedelta(days=1)
 
         remaining = n_days - i
-        # confidence decay: 시간이 갈수록 추세 영향 줄이고 평균 회귀 강화
         confidence = max(0.2, 1.0 - i * 0.03)
 
-        # 1) 추세 편향 (decay 적용)
-        drift = bias * confidence
+        # 1) 수박지표: 스퀴즈 시 변동성 축소 → 후반에 확대
+        if is_squeeze:
+            squeeze_phase = min(1.0, i / max(5, n_days * 0.4))
+            volatility_mult = 0.4 + squeeze_phase * 0.8  # 0.4x → 1.2x
+        else:
+            volatility_mult = 1.0
 
-        # 2) 타겟 수렴 (단기 < 15일, 장기 >= 15일)
+        # 2) 추세 편향 (decay 적용)
+        drift = bias * confidence * volatility_mult
+
+        # 3) 타겟 수렴 (단기 < 15일, 장기 >= 15일)
         target = sell_short_price if i < 15 else sell_long_price
         if target is not None and remaining > 0:
             target_pull = (target - prev_close) / remaining * 0.3
             drift = drift * 0.5 + target_pull * 0.5
 
-        # 3) SMA20 평균 회귀 (가격이 SMA에서 멀수록 강하게 당김)
+        # 4) SMA20 평균 회귀
         if sma20_val and sma20_val > 0:
             distance_pct = (prev_close - sma20_val) / sma20_val
             reversion_force = -distance_pct * atr_val * 0.4 * (1 - confidence)
             drift += reversion_force
 
-        # 4) 볼린저 밴드 범위 제약
+        # 5) BB 범위 제약
         projected = prev_close + drift
         if bb_upper and projected > bb_upper * 1.02:
             projected = bb_upper * 1.02
@@ -315,8 +333,13 @@ def _generate_predicted_candles(
 
         o = prev_close
         c = o + drift
-        # 일별 변동 범위도 confidence에 비례
-        range_mult = 0.3 * confidence + 0.15
+
+        # 6) 계단지표: 그리드 크기가 있으면 종가를 그리드 단위에 스냅
+        if staircase_grid_size > 0:
+            c = round(c / staircase_grid_size) * staircase_grid_size
+
+        # 일별 변동 범위
+        range_mult = (0.3 * confidence + 0.15) * volatility_mult
         h = max(o, c) + atr_val * range_mult
         lo = min(o, c) - atr_val * (range_mult * 0.7)
 
@@ -752,11 +775,16 @@ async def predict_stock(
             summary = "하락 지표가 우세합니다. 리스크 관리에 유의하세요."
 
         # 예측 캔들 생성 (미래 n 영업일)
-        last_date = str(df["time"].iloc[-1])
+        last_date = str(df["time"].iloc[-1])[:10]  # "YYYY-MM-DD" 형태만 취함
         atr_for_pred = float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02
         sma20_last = float(sma20.iloc[-1]) if not sma20.dropna().empty else None
         bb_up_last = float(bb_up.iloc[-1]) if not bb_up.dropna().empty else None
         bb_dn_last = float(bb_dn.iloc[-1]) if not bb_dn.dropna().empty else None
+        # 계단지표의 grid_size 전달
+        staircase_grid = 0.0
+        if not atr14.dropna().empty:
+            staircase_grid = float(atr14.iloc[-1]) * 0.5
+
         predicted_candles = _generate_predicted_candles(
             last_date=last_date,
             last_close=cur,
@@ -767,6 +795,9 @@ async def predict_stock(
             sma20_val=sma20_last,
             bb_upper=bb_up_last,
             bb_lower=bb_dn_last,
+            is_squeeze=is_squeeze,
+            staircase_signal=staircase_signal,
+            staircase_grid_size=staircase_grid,
             n_days=n_days,
         )
 

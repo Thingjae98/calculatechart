@@ -249,6 +249,7 @@ function App() {
             supportLines={supportLines}
             resistanceLines={resistanceLines}
             boxRange={boxRange}
+            sellTargets={prediction?.sell_targets}
             freshLoadId={freshLoadId}
             onLoadMore={loadMore}
             predDays={predDays}
