@@ -49,8 +49,10 @@ export interface PredictionSignal {
 export interface SellTargets {
   short_term: number | null
   long_term: number | null
+  stop_loss: number | null
   short_term_desc: string | null
   long_term_desc: string | null
+  stop_loss_desc: string | null
 }
 
 export interface PredictionResult {

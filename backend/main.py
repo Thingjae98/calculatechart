@@ -250,44 +250,37 @@ def _generate_predicted_candles(
     last_close: float,
     atr_val: float,
     prediction_score: int,
-    sell_short_price: int | None,
-    sell_long_price: int | None,
     sma20_val: float | None,
     bb_upper: float | None,
     bb_lower: float | None,
     is_squeeze: bool = False,
     staircase_signal: str | None = None,
-    staircase_grid_size: float = 0.0,
     n_days: int = 7,
 ) -> list[dict]:
     """
-    기하 브라운 운동(GBM) 기반 + 기술적 편향 미래 일봉 생성.
+    기하 브라운 운동(GBM) 기반 미래 일봉 생성.
+    점수 방향에 따라 자연스럽게 진행 — 매도가 수렴 없음.
 
-    핵심 원리:
-    - GBM: dS = S * (μ*dt + σ*dW)  → 실제 주가 수익률 분포와 유사
-    - 일별 수익률에 기술적 편향(μ)을 넣고, 변동성(σ)은 ATR 기반
-    - 수익률 기반이므로 주가 수준(206,000원이든 1,000원이든) 무관하게 동작
-    - 몸통 크기 보장: 최소 ATR의 20%
+    핵심:
+    - GBM 수익률 모델: 주가 수준 무관
+    - 추세(μ)는 점수에서만 결정 → 매도가와 충돌 없음
+    - 실제 차트 패턴: 3일 연속 추세 후 1일 조정 등
     """
     rng = np.random.default_rng(seed=42)
 
-    # ── 1. 일별 기대수익률 μ (기술적 점수 기반) ──
-    # 점수 0~100을 일별 수익률로 변환
-    # 점수 80 → +0.5%/일, 점수 20 → -0.5%/일
+    # ── 1. 일별 기대수익률 μ ──
     score_norm = (prediction_score - 50) / 50      # -1.0 ~ +1.0
     daily_mu = score_norm * 0.005                   # ±0.5%/일
 
-    # 계단지표 방향 추가
     if staircase_signal == "up":
-        daily_mu += 0.002   # +0.2%/일
+        daily_mu += 0.002
     elif staircase_signal == "down":
         daily_mu -= 0.002
 
-    # ── 2. 일별 변동성 σ (ATR 기반) ──
-    # ATR / 현재가 = 일일 평균 변동률
-    daily_sigma = atr_val / last_close  # 보통 1.5~3%
+    # ── 2. 일별 변동성 σ ──
+    daily_sigma = atr_val / last_close
 
-    # ── 3. BB 중심/폭 (소프트 가이드용) ──
+    # ── 3. BB 가이드 ──
     bb_mid = None
     bb_half_pct = None
     if bb_upper and bb_lower and last_close > 0:
@@ -297,6 +290,8 @@ def _generate_predicted_candles(
     candles = []
     prev_close = last_close
     d = date.fromisoformat(last_date[:10])
+    # 연속 추세 카운터 (3~4일 추세 후 조정 패턴용)
+    trend_streak = 0
 
     for i in range(n_days):
         d += timedelta(days=1)
@@ -304,69 +299,70 @@ def _generate_predicted_candles(
             d += timedelta(days=1)
 
         progress = i / max(1, n_days - 1)
-        remaining = n_days - i
 
         # ── 4. 수박 스퀴즈: 변동성 조절 ──
         if is_squeeze:
             phase = min(1.0, i / max(5, n_days * 0.3))
-            vol_scale = 0.4 + phase * 1.2       # 0.4x → 1.6x (폭발)
+            vol_scale = 0.4 + phase * 1.2
         else:
-            vol_scale = 0.9 + progress * 0.3     # 0.9x → 1.2x
+            vol_scale = 0.9 + progress * 0.3
 
         sigma_today = daily_sigma * vol_scale
 
-        # ── 5. GBM 수익률 생성 ──
-        # 종가 수익률
-        z_close = rng.normal(0, 1)
-        ret_close = daily_mu + sigma_today * z_close
+        # ── 5. 조정 패턴: 3~4일 추세 후 반대 방향 1일 ──
+        if abs(trend_streak) >= 3 and rng.random() < 0.6:
+            # 조정일: 추세 반대 방향
+            correction_mu = -daily_mu * 0.5
+            z_close = rng.normal(0, 1)
+            ret_close = correction_mu + sigma_today * z_close
+            trend_streak = 0
+        else:
+            z_close = rng.normal(0, 1)
+            ret_close = daily_mu + sigma_today * z_close
 
-        # SMA20 약한 회귀 (5% 이상 벗어났을 때만)
+        # 추세 방향 추적
+        if ret_close > 0:
+            trend_streak = max(1, trend_streak + 1)
+        else:
+            trend_streak = min(-1, trend_streak - 1)
+
+        # ── 6. SMA20 약한 회귀 ──
         if sma20_val and sma20_val > 0:
             dist_pct = (prev_close - sma20_val) / sma20_val
             if abs(dist_pct) > 0.05:
-                ret_close -= dist_pct * 0.08  # 편차의 8%만 회귀
+                ret_close -= dist_pct * 0.08
 
-        # 매도 타겟 수렴 (부드럽게)
-        target = sell_short_price if i < 15 else sell_long_price
-        if target is not None and remaining > 0 and prev_close > 0:
-            target_ret = (target / prev_close - 1.0) / remaining * 0.15
-            ret_close += target_ret
-
-        # BB 소프트 제약 (탄성 반발)
+        # ── 7. BB 소프트 제약 ──
         projected = prev_close * (1 + ret_close)
         if bb_mid is not None and bb_half_pct is not None:
-            expand = 1.0 + progress * 0.8  # BB 범위 시간에 따라 확장
+            expand = 1.0 + progress * 0.8
             soft_upper = bb_mid * (1 + bb_half_pct * expand)
             soft_lower = bb_mid * (1 - bb_half_pct * expand)
             if projected > soft_upper:
                 excess = (projected - soft_upper) / projected
-                ret_close -= excess * 0.6
+                ret_close -= excess * 0.5
             elif projected < soft_lower:
                 deficit = (soft_lower - projected) / projected
-                ret_close += deficit * 0.6
+                ret_close += deficit * 0.5
 
-        # ── 6. 종가 확정 ──
+        # ── 8. 캔들 생성 ──
         c = prev_close * (1 + ret_close)
 
-        # ── 7. 시가 (전일 종가 기준 갭) ──
         gap_ret = rng.normal(0, 1) * sigma_today * 0.3
         o = prev_close * (1 + gap_ret)
 
-        # ── 8. 몸통 크기 보장 (최소 ATR의 20%) ──
+        # 몸통 크기 보장 (ATR 20%)
         body = abs(c - o)
         min_body = atr_val * 0.2
         if body < min_body:
             direction = 1.0 if c >= o else -1.0
             c = o + direction * min_body
 
-        # ── 9. 고가/저가 (실제 캔들 비율 모사) ──
         body_top = max(o, c)
         body_bot = min(o, c)
 
-        # 꼬리 길이: 지수분포 → 가끔 긴 꼬리 (실제 차트 특성)
         upper_wick = rng.exponential(0.5) * atr_val * 0.3 * vol_scale
         lower_wick = rng.exponential(0.5) * atr_val * 0.25 * vol_scale
-
         h = body_top + upper_wick
         lo = body_bot - lower_wick
 
@@ -770,21 +766,51 @@ async def predict_stock(
                             "desc": "주가가 한 단계씩 내려가고 있어요. 조심하세요."})
 
         # ══════════════════════════════════════════════
-        # 7. 추천 매도가 (단기/장기)
-        # (Pine Script 계단지표 v2에서 추가한 로직)
+        # 7. 목표가 / 손절가  (점수 연동)
         # ══════════════════════════════════════════════
-        sell_short_price = None
-        sell_long_price = None
+        sell_short_price = None   # 단기 목표가
+        sell_long_price = None    # 장기 목표가
+        stop_loss_price = None    # 손절가
+        sell_short_desc = None
+        sell_long_desc = None
+        stop_loss_desc = None
 
-        # 단기 매도가: BB 상단 (20일, 2배수)
-        if not bb_up.dropna().empty:
-            sell_short_price = int(float(bb_up.iloc[-1]))
+        atr_val = float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02
 
-        # 장기 매도가: 최근 60봉 최고가 + ATR * 1.5
-        if not atr14.dropna().empty and len(high) >= 60:
-            highest_60 = float(high.tail(60).max())
-            sell_long_raw = highest_60 + atr_val * 1.5
-            sell_long_price = int(max(sell_long_raw, cur + atr_val * 3))
+        if final_score >= 60:
+            # ── 매수 유리 → 목표가 제시 ──
+            # 단기: 현재가 + ATR × (점수 비례 배수)
+            short_mult = 1.0 + (final_score - 60) / 40 * 1.0   # 1.0x ~ 2.0x
+            sell_short_price = int(cur + atr_val * short_mult)
+            sell_short_desc = f"단기 목표 (ATR ×{short_mult:.1f} 상승 여력)"
+
+            # 장기: BB 상단 + α 또는 60일 최고가 활용
+            if not bb_up.dropna().empty and len(high) >= 60:
+                bb_top = float(bb_up.iloc[-1])
+                highest_60 = float(high.tail(60).max())
+                long_mult = 1.5 + (final_score - 60) / 40 * 1.5  # 1.5x ~ 3.0x
+                sell_long_price = int(max(bb_top, highest_60, cur + atr_val * long_mult))
+                sell_long_desc = f"장기 목표 (주요 저항선 + ATR ×{long_mult:.1f})"
+            elif not bb_up.dropna().empty:
+                sell_long_price = int(float(bb_up.iloc[-1]) * 1.02)
+                sell_long_desc = "장기 목표 (BB 상단 +2%)"
+
+            # 손절가: 현재가 - ATR × 1.5 (리스크 관리)
+            stop_loss_price = int(cur - atr_val * 1.5)
+            stop_loss_desc = "손절 기준 (ATR ×1.5 하락 시)"
+
+        elif final_score >= 40:
+            # ── 관망 → 보수적 목표 + 손절가 ──
+            sell_short_price = int(cur + atr_val * 0.8)
+            sell_short_desc = "소폭 반등 시 매도 고려"
+
+            stop_loss_price = int(cur - atr_val * 1.0)
+            stop_loss_desc = "손절 기준 (ATR ×1.0 하락 시)"
+
+        else:
+            # ── 매수 위험 → 손절가만 제시 (목표가 없음) ──
+            stop_loss_price = int(cur - atr_val * 0.8)
+            stop_loss_desc = "보유 중이라면 이 가격 아래로 내려가면 매도 고려"
 
         # ──────────────────────────────────────────────
         # 최종 점수 및 전망
@@ -812,8 +838,6 @@ async def predict_stock(
             last_close=cur,
             atr_val=atr_for_pred,
             prediction_score=final_score,
-            sell_short_price=sell_short_price,
-            sell_long_price=sell_long_price,
             sma20_val=sma20_last,
             bb_upper=bb_up_last,
             bb_lower=bb_dn_last,
@@ -834,8 +858,10 @@ async def predict_stock(
             "sell_targets": {
                 "short_term": sell_short_price,
                 "long_term": sell_long_price,
-                "short_term_desc": "단기 매도 목표 (BB 상단 기반)" if sell_short_price else None,
-                "long_term_desc": "장기 매도 목표 (60일 최고가+ATR 기반)" if sell_long_price else None,
+                "stop_loss": stop_loss_price,
+                "short_term_desc": sell_short_desc,
+                "long_term_desc": sell_long_desc,
+                "stop_loss_desc": stop_loss_desc,
             },
             "predicted_candles": predicted_candles,
         }

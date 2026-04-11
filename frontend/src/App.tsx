@@ -242,18 +242,24 @@ function App() {
                   />
                 </div>
               </div>
-              {prediction?.sell_targets && (prediction.sell_targets.short_term || prediction.sell_targets.long_term) && (
+              {prediction?.sell_targets && (
                 <div className="sellTargetsInline">
                   {prediction.sell_targets.short_term && (
                     <div className="sellInlineRow sellInlineShort">
-                      <span className="sellInlineLabel">단기 추천 매도가</span>
+                      <span className="sellInlineLabel">단기 목표가</span>
                       <span className="sellInlinePrice">{prediction.sell_targets.short_term.toLocaleString()}원</span>
                     </div>
                   )}
                   {prediction.sell_targets.long_term && (
                     <div className="sellInlineRow sellInlineLong">
-                      <span className="sellInlineLabel">장기 추천 매도가</span>
+                      <span className="sellInlineLabel">장기 목표가</span>
                       <span className="sellInlinePrice">{prediction.sell_targets.long_term.toLocaleString()}원</span>
+                    </div>
+                  )}
+                  {prediction.sell_targets.stop_loss && (
+                    <div className="sellInlineRow sellInlineStop">
+                      <span className="sellInlineLabel">손절가</span>
+                      <span className="sellInlinePrice">{prediction.sell_targets.stop_loss.toLocaleString()}원</span>
                     </div>
                   )}
                 </div>
