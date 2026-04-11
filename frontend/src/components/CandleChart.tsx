@@ -86,7 +86,6 @@ export function CandleChart(props: {
   supportLines?: number[]
   resistanceLines?: number[]
   boxRange?: { is_box: boolean; top?: number; bottom?: number }
-  sellTargets?: { short_term?: number | null; long_term?: number | null }
   onLoadMore?: () => void
   freshLoadId?: number
   predDays?: number
@@ -100,7 +99,7 @@ export function CandleChart(props: {
   const supportPriceLinesRef = useRef<IPriceLine[]>([])
   const resistancePriceLinesRef = useRef<IPriceLine[]>([])
   const boxPriceLinesRef = useRef<IPriceLine[]>([])
-  const sellPriceLinesRef = useRef<IPriceLine[]>([])
+  // sellPriceLinesRef 제거 — 매도가는 UI 텍스트로 표시
 
   const onLoadMoreRef = useRef<(() => void) | undefined>(undefined)
   const loadMoreTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -176,14 +175,14 @@ export function CandleChart(props: {
         wickDownColor: '#ef4444',
       })
 
-      // 예측 캔들 시리즈 (보라색)
+      // 예측 캔들 시리즈 (기존 캔들과 같은 빨/초 + 반투명 + 점선 테두리)
       predictedSeriesRef.current = chart.addSeries(CandlestickSeries, {
-        upColor: 'rgba(99, 102, 241, 0.8)',
-        downColor: 'rgba(239, 68, 68, 0.55)',
-        borderUpColor: 'rgba(99, 102, 241, 0.8)',
-        borderDownColor: 'rgba(239, 68, 68, 0.55)',
-        wickUpColor: 'rgba(99, 102, 241, 0.8)',
-        wickDownColor: 'rgba(239, 68, 68, 0.55)',
+        upColor: 'rgba(34, 197, 94, 0.45)',
+        downColor: 'rgba(239, 68, 68, 0.45)',
+        borderUpColor: 'rgba(34, 197, 94, 0.7)',
+        borderDownColor: 'rgba(239, 68, 68, 0.7)',
+        wickUpColor: 'rgba(34, 197, 94, 0.5)',
+        wickDownColor: 'rgba(239, 68, 68, 0.5)',
       })
 
       // 거래량 히스토그램 시리즈 (하단 20%)
@@ -331,12 +330,9 @@ export function CandleChart(props: {
         series.removePriceLine(line)
       for (const line of boxPriceLinesRef.current)
         series.removePriceLine(line)
-      for (const line of sellPriceLinesRef.current)
-        series.removePriceLine(line)
       supportPriceLinesRef.current = []
       resistancePriceLinesRef.current = []
       boxPriceLinesRef.current = []
-      sellPriceLinesRef.current = []
 
       const isValid = (p: unknown): p is number =>
         typeof p === 'number' && Number.isFinite(p) && p > 0
@@ -390,36 +386,11 @@ export function CandleChart(props: {
         }
       }
 
-      // 매도 목표가 라인
-      const sell = props.sellTargets
-      if (sell?.short_term && isValid(sell.short_term)) {
-        sellPriceLinesRef.current.push(
-          series.createPriceLine({
-            price: sell.short_term,
-            color: '#f97316',
-            lineWidth: 2,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: '단기 매도',
-          }),
-        )
-      }
-      if (sell?.long_term && isValid(sell.long_term)) {
-        sellPriceLinesRef.current.push(
-          series.createPriceLine({
-            price: sell.long_term,
-            color: '#ef4444',
-            lineWidth: 2,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: '중장기 매도',
-          }),
-        )
-      }
+      // 매도 목표가는 UI 텍스트로 표시 (차트 라인 제거)
     } catch (e) {
       console.error('라인 오버레이 실패:', toMessage(e))
     }
-  }, [props.supportLines, props.resistanceLines, props.boxRange, props.sellTargets])
+  }, [props.supportLines, props.resistanceLines, props.boxRange])
 
   const predDaysLabel = props.predDays ?? predictedData.length
 
@@ -439,8 +410,8 @@ export function CandleChart(props: {
           </span>
         ))}
         {predictedData.length > 0 && (
-          <span style={{ color: '#818cf8' }}>
-            ■ AI {predDaysLabel}일 예측
+          <span style={{ color: 'rgba(34, 197, 94, 0.7)' }}>
+            ◧ AI {predDaysLabel}일 예측 (반투명)
           </span>
         )}
       </div>

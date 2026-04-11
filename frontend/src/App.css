@@ -394,45 +394,41 @@
   color: var(--text);
 }
 
-.sellTargets {
+/* 매도가 인라인 (scoreBox 옆) */
+.sellTargetsInline {
   display: flex;
-  gap: 12px;
-  margin-top: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.sellCard {
-  flex: 1;
-  min-width: 160px;
-  padding: 12px;
-  border-radius: 10px;
+.sellInlineRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
-.sellShort {
+.sellInlineShort {
   background: rgba(249, 115, 22, 0.1);
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
-.sellLong {
+
+.sellInlineLong {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
-.sellLabel {
-  font-size: 12px;
+.sellInlineLabel {
   color: var(--text);
-  margin-bottom: 4px;
+  white-space: nowrap;
 }
 
-.sellPrice {
-  font-size: 18px;
+.sellInlinePrice {
   font-weight: 700;
   color: var(--text-h);
-}
-
-.sellDesc {
-  font-size: 11px;
-  color: var(--text);
-  margin-top: 3px;
+  white-space: nowrap;
 }
 
 /* ── 추천 종목 카드 ───────────────────────────────────────────── */
@@ -533,7 +529,7 @@
     flex-direction: column;
     gap: 6px;
   }
-  .sellTargets {
-    flex-direction: column;
+  .sellTargetsInline {
+    margin-top: 8px;
   }
 }

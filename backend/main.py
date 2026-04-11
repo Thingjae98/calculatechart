@@ -613,10 +613,10 @@ async def predict_stock(
             s20, s60, s120 = float(sma20.iloc[-1]), float(sma60.iloc[-1]), float(sma120.iloc[-1])
             if cur > s20 > s60 > s120:
                 score += 15
-                signals.append({"type": "positive", "label": "정배열 (대세 상승)", "desc": "단기/중기/장기 이동평균이 모두 우상향 중입니다."})
+                signals.append({"type": "positive", "label": "주가 흐름 좋음 📈", "desc": "최근 주가가 꾸준히 오르고 있어요. 상승 흐름이 이어지고 있습니다."})
             elif cur < s20 < s60 < s120:
                 score -= 15
-                signals.append({"type": "negative", "label": "역배열 (하락 추세)", "desc": "완연한 하락 추세입니다. 섣부른 매수는 위험합니다."})
+                signals.append({"type": "negative", "label": "주가 흐름 안 좋음 📉", "desc": "주가가 계속 내려가고 있어요. 지금 사면 손해볼 수 있습니다."})
 
         # ──────────────────────────────────────────────
         # 2. RSI (기존)
@@ -625,12 +625,12 @@ async def predict_stock(
             rsi = float(rsi_series.iloc[-1])
             if rsi <= 30:
                 score += 15
-                signals.append({"type": "positive", "label": f"RSI 바닥 ({rsi:.1f})", "desc": "공포에 의한 과매도 구간입니다. 반등 가능성이 높습니다."})
+                signals.append({"type": "positive", "label": f"많이 떨어진 상태 ({rsi:.0f}점)", "desc": "주가가 많이 내려와서 다시 오를 가능성이 높아요."})
             elif rsi >= 70:
                 score -= 15
-                signals.append({"type": "negative", "label": f"RSI 과열 ({rsi:.1f})", "desc": "단기 과매수 상태입니다. 조정을 주의하세요."})
+                signals.append({"type": "negative", "label": f"많이 오른 상태 ({rsi:.0f}점)", "desc": "주가가 단기간에 많이 올라서 잠시 내려갈 수 있어요."})
             else:
-                signals.append({"type": "neutral", "label": f"RSI 중립 ({rsi:.1f})", "desc": "과매도/과매수 구간이 아닙니다."})
+                signals.append({"type": "neutral", "label": f"보통 상태 ({rsi:.0f}점)", "desc": "지금은 특별히 싸지도, 비싸지도 않은 상태예요."})
 
         # ──────────────────────────────────────────────
         # 3. MACD (기존)
@@ -640,10 +640,10 @@ async def predict_stock(
             hist_prev = float(histogram.iloc[-2])
             if float(macd_line.iloc[-1]) > float(signal_line.iloc[-1]) and hist_now > hist_prev:
                 score += 10
-                signals.append({"type": "positive", "label": "MACD 매수 신호", "desc": "상승 모멘텀이 강해지고 있습니다."})
+                signals.append({"type": "positive", "label": "오를 힘이 강해지는 중 💪", "desc": "주가가 위로 올라가려는 힘이 점점 세지고 있어요."})
             elif float(macd_line.iloc[-1]) < float(signal_line.iloc[-1]) and hist_now < hist_prev:
                 score -= 10
-                signals.append({"type": "negative", "label": "MACD 매도 신호", "desc": "하락 모멘텀이 강해지고 있습니다."})
+                signals.append({"type": "negative", "label": "내릴 힘이 강해지는 중 ⚠️", "desc": "주가가 아래로 내려가려는 힘이 점점 세지고 있어요."})
 
         # ──────────────────────────────────────────────
         # 4. 볼린저 밴드 (기존)
@@ -652,10 +652,10 @@ async def predict_stock(
             up_val, dn_val = float(bb_up.iloc[-1]), float(bb_dn.iloc[-1])
             if cur <= dn_val * 1.02:
                 score += 10
-                signals.append({"type": "positive", "label": "볼린저 하단 지지", "desc": "통계적 바닥 구간에 도달했습니다."})
+                signals.append({"type": "positive", "label": "바닥 근처 도달 🔻", "desc": "주가가 최근 범위에서 가장 낮은 쪽에 와 있어요. 반등할 수 있어요."})
             elif cur >= up_val * 0.98:
                 score -= 10
-                signals.append({"type": "negative", "label": "볼린저 상단 저항", "desc": "통계적 천장 구간에 도달했습니다."})
+                signals.append({"type": "negative", "label": "천장 근처 도달 🔺", "desc": "주가가 최근 범위에서 가장 높은 쪽에 와 있어요. 내려갈 수 있어요."})
 
         # ══════════════════════════════════════════════
         # 5. 수박지표 연동: BB 스퀴즈 + 이평선 수렴도
@@ -683,17 +683,17 @@ async def predict_stock(
         if is_squeeze and ma_convergence is not None and ma_convergence < 2.0:
             if disparity_20 is not None and abs(disparity_20) < 3.0:
                 score += 10
-                label = "수박 신호 (스퀴즈+수렴)"
-                desc = f"BB 스퀴즈 + 이평선 수렴(편차 {ma_convergence:.1f}%) 감지. 추세 전환 임박 가능성."
+                label = "큰 움직임 준비 중 🍉"
+                desc = "주가가 좁은 범위에서 모이고 있어요. 곧 크게 오르거나 내릴 수 있어요."
                 # 224일선 위면 강한 수박
                 if not sma224.dropna().empty and cur > float(sma224.iloc[-1]):
                     score += 5
-                    label = "강한 수박 (224일선 위)"
-                    desc += " 224일선 위에서 발생한 강한 신호입니다."
+                    label = "큰 상승 준비 중 🍉💪"
+                    desc = "주가가 장기 평균 위에서 힘을 모으고 있어요. 크게 오를 가능성이 높아요."
                 signals.append({"type": "positive", "label": label, "desc": desc})
         elif is_squeeze:
-            signals.append({"type": "neutral", "label": "BB 스퀴즈 감지",
-                            "desc": "볼린저밴드가 수축 중입니다. 변동성 확대 임박."})
+            signals.append({"type": "neutral", "label": "주가가 쉬는 중 😴",
+                            "desc": "주가 변동이 줄어들고 있어요. 곧 움직임이 커질 수 있어요."})
 
         # ══════════════════════════════════════════════
         # 6. 계단지표 연동: ATR 기반 계단형 지지레벨 판단
@@ -735,12 +735,12 @@ async def predict_stock(
 
         if staircase_signal == "up":
             score += 5
-            signals.append({"type": "positive", "label": "상승 계단 형성",
-                            "desc": "ATR 기반 지지레벨이 상향 이동 중. 상승 추세 확인."})
+            signals.append({"type": "positive", "label": "한 계단씩 오르는 중 🪜",
+                            "desc": "주가가 한 단계씩 올라가고 있어요. 안정적인 상승 신호예요."})
         elif staircase_signal == "down":
             score -= 5
-            signals.append({"type": "negative", "label": "하락 계단 형성",
-                            "desc": "ATR 기반 지지레벨이 하향 이동 중. 하락 추세 주의."})
+            signals.append({"type": "negative", "label": "한 계단씩 내리는 중 🪜",
+                            "desc": "주가가 한 단계씩 내려가고 있어요. 조심하세요."})
 
         # ══════════════════════════════════════════════
         # 7. 추천 매도가 (단기/장기)
@@ -765,14 +765,14 @@ async def predict_stock(
         final_score = max(0, min(100, score))
 
         if final_score >= 70:
-            outlook_short, outlook_mid = "상승 우세", "추세 지속 가능"
-            summary = "기술적 지표 다수가 매수 신호입니다."
+            outlook_short, outlook_mid = "오를 가능성 높음 👍", "당분간 좋아 보여요"
+            summary = "여러 지표가 '사도 괜찮다'고 말하고 있어요."
         elif final_score >= 40:
-            outlook_short, outlook_mid = "중립 / 관망", "방향성 확인 필요"
-            summary = "상승/하락 신호가 혼재합니다. 추가 확인 후 진입을 권장합니다."
+            outlook_short, outlook_mid = "지켜보는 게 좋아요 👀", "아직 방향을 모르겠어요"
+            summary = "오를 수도, 내릴 수도 있어요. 좀 더 지켜본 후 결정하세요."
         else:
-            outlook_short, outlook_mid = "하락 주의", "조정 가능성 존재"
-            summary = "하락 지표가 우세합니다. 리스크 관리에 유의하세요."
+            outlook_short, outlook_mid = "내릴 수 있어요 ⚠️", "조심해야 할 시기"
+            summary = "내려갈 신호가 더 많아요. 신중하게 판단하세요."
 
         # 예측 캔들 생성 (미래 n 영업일)
         last_date = str(df["time"].iloc[-1])[:10]  # "YYYY-MM-DD" 형태만 취함

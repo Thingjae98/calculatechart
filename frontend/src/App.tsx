@@ -231,15 +231,33 @@ function App() {
                 </span>
               </div>
             </div>
-            <div className="scoreBox" style={{ borderColor: scoreColor(chartScore) }}>
-              <div className="scoreNum" style={{ color: scoreColor(chartScore) }}>{chartScore}</div>
-              <div className="scoreLabel">{scoreLabel(chartScore)}</div>
-              <div className="scoreBar">
-                <div
-                  className="scoreBarFill"
-                  style={{ width: `${chartScore}%`, backgroundColor: scoreColor(chartScore) }}
-                />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div className="scoreBox" style={{ borderColor: scoreColor(chartScore) }}>
+                <div className="scoreNum" style={{ color: scoreColor(chartScore) }}>{chartScore}</div>
+                <div className="scoreLabel">{scoreLabel(chartScore)}</div>
+                <div className="scoreBar">
+                  <div
+                    className="scoreBarFill"
+                    style={{ width: `${chartScore}%`, backgroundColor: scoreColor(chartScore) }}
+                  />
+                </div>
               </div>
+              {prediction?.sell_targets && (prediction.sell_targets.short_term || prediction.sell_targets.long_term) && (
+                <div className="sellTargetsInline">
+                  {prediction.sell_targets.short_term && (
+                    <div className="sellInlineRow sellInlineShort">
+                      <span className="sellInlineLabel">단기 추천 매도가</span>
+                      <span className="sellInlinePrice">{prediction.sell_targets.short_term.toLocaleString()}원</span>
+                    </div>
+                  )}
+                  {prediction.sell_targets.long_term && (
+                    <div className="sellInlineRow sellInlineLong">
+                      <span className="sellInlineLabel">장기 추천 매도가</span>
+                      <span className="sellInlinePrice">{prediction.sell_targets.long_term.toLocaleString()}원</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -249,7 +267,6 @@ function App() {
             supportLines={supportLines}
             resistanceLines={resistanceLines}
             boxRange={boxRange}
-            sellTargets={prediction?.sell_targets}
             freshLoadId={freshLoadId}
             onLoadMore={loadMore}
             predDays={predDays}
@@ -314,24 +331,6 @@ function App() {
               ))}
             </div>
 
-            {prediction.sell_targets && (prediction.sell_targets.short_term || prediction.sell_targets.long_term) && (
-              <div className="sellTargets">
-                {prediction.sell_targets.short_term && (
-                  <div className="sellCard sellShort">
-                    <div className="sellLabel">단기 매도 목표</div>
-                    <div className="sellPrice">{prediction.sell_targets.short_term.toLocaleString()}원</div>
-                    <div className="sellDesc">{prediction.sell_targets.short_term_desc}</div>
-                  </div>
-                )}
-                {prediction.sell_targets.long_term && (
-                  <div className="sellCard sellLong">
-                    <div className="sellLabel">장기 매도 목표</div>
-                    <div className="sellPrice">{prediction.sell_targets.long_term.toLocaleString()}원</div>
-                    <div className="sellDesc">{prediction.sell_targets.long_term_desc}</div>
-                  </div>
-                )}
-              </div>
-            )}
           </section>
         )}
 
