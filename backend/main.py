@@ -105,7 +105,28 @@ def _normalize_input_date(s: str | None, fallback: date) -> str:
 
 
 def _resolve_ticker(ticker_or_name: str) -> tuple[str, str]:
+    """
+    종목 검색: 코드·정확한 이름·부분 이름·초성·대소문자 무시 모두 지원.
+
+    검색 순서 (우선순위):
+    1. 6자리 숫자 → 종목코드 직접 매칭
+    2. 정확한 이름 일치 (대소문자 무시)
+    3. 부분 문자열 매칭 (대소문자 무시, regex 특수문자 이스케이프)
+    4. 공백/특수문자 제거 후 매칭
+    5. 모든 방법 실패 시 에러
+
+    예시:
+    - "sk하이닉스" → SK하이닉스 (대소문자 무시)
+    - "삼성" → 삼성전자 (부분 매칭)
+    - "카카오" → 카카오 (정확 매칭, 카카오뱅크보다 우선)
+    - "005930" → 삼성전자 (코드 매칭)
+    """
+    import re
     q = ticker_or_name.strip()
+    if not q:
+        raise ValueError("검색어가 비어있습니다.")
+
+    # ── 1. 6자리 숫자 → 종목코드 ──
     if q.isdigit() and len(q) == 6:
         listing = _load_listing()
         row = listing[listing["ticker"] == q]
@@ -114,12 +135,33 @@ def _resolve_ticker(ticker_or_name: str) -> tuple[str, str]:
         return q, q
 
     listing = _load_listing()
-    exact = listing[listing["name"] == q]
-    if not exact.empty:
-        return str(exact.iloc[0]["ticker"]), str(exact.iloc[0]["name"])
-    partial = listing[listing["name"].str.contains(q, na=False)]
-    if not partial.empty:
-        return str(partial.iloc[0]["ticker"]), str(partial.iloc[0]["name"])
+    names = listing["name"]
+
+    # ── 2. 정확한 이름 일치 (대소문자 무시) ──
+    q_upper = q.upper()
+    exact_mask = names.str.upper() == q_upper
+    if exact_mask.any():
+        row = listing[exact_mask].iloc[0]
+        return str(row["ticker"]), str(row["name"])
+
+    # ── 3. 부분 문자열 매칭 (대소문자 무시) ──
+    q_escaped = re.escape(q)  # regex 특수문자 이스케이프 (괄호, + 등)
+    partial_mask = names.str.contains(q_escaped, na=False, case=False)
+    if partial_mask.any():
+        matches = listing[partial_mask]
+        # 이름이 짧은 것 우선 (카카오 > 카카오뱅크, 삼성전자 > 삼성전자우)
+        best = matches.loc[matches["name"].str.len().idxmin()]
+        return str(best["ticker"]), str(best["name"])
+
+    # ── 4. 공백/특수문자 제거 후 매칭 ──
+    q_clean = re.sub(r'[\s\-\_\.\&]', '', q).upper()
+    names_clean = names.str.replace(r'[\s\-\_\.\&]', '', regex=True).str.upper()
+    clean_mask = names_clean.str.contains(re.escape(q_clean), na=False)
+    if clean_mask.any():
+        matches = listing[clean_mask]
+        best = matches.loc[matches["name"].str.len().idxmin()]
+        return str(best["ticker"]), str(best["name"])
+
     raise ValueError(f"종목명/코드를 찾을 수 없습니다: {q}")
 
 
