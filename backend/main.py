@@ -262,31 +262,33 @@ def _generate_predicted_candles(
 ) -> list[dict]:
     """
     기술적 지표 기반 미래 일봉 생성 (30일까지 지원).
+    실제 주가와 유사한 자연스러운 캔들 패턴을 생성합니다.
 
-    **예측에 반영하는 지표:**
-    1. prediction_score (MA 정배열, RSI, MACD, BB, 수박, 계단 종합)
-    2. SMA20 평균 회귀 — 가격이 SMA에서 멀수록 당김
-    3. BB 범위 제약 — 상/하단 밖으로 벗어나지 않음
-    4. 수박지표(BB 스퀴즈) — 스퀴즈 감지 시 초기 변동성 축소 → 후반 확대 (추세 전환)
-    5. 계단지표(ATR 스텝) — 상승/하락 계단 방향으로 추가 편향 + 그리드 단위 스냅
-    6. 단기/장기 매도가 수렴
-    7. Confidence decay — 시간이 갈수록 추세 영향 줄이고 평균 회귀 강화
+    핵심 개선사항:
+    - 시드 기반 랜덤 노이즈로 매일 자연스러운 등락 생성
+    - BB 범위는 시간에 따라 자연스럽게 확장
+    - 추세·회귀·타겟을 적절히 블렌딩
+    - 실제 캔들처럼 몸통+꼬리 비율이 다양함
     """
-    # ── 기본 추세 편향 ──
-    if prediction_score >= 65:
-        bias = atr_val * 0.25
-    elif prediction_score >= 50:
-        bias = atr_val * 0.05
-    elif prediction_score >= 40:
-        bias = -atr_val * 0.05
-    else:
-        bias = -atr_val * 0.25
+    rng = np.random.default_rng(seed=42)  # 동일 요청은 동일 결과
 
-    # ── 계단지표 편향 추가 ──
+    # ── 1. 기본 추세 방향 (일일 drift) ──
+    # 점수에 비례하여 ATR 대비 방향 결정
+    score_norm = (prediction_score - 50) / 50  # -1.0 ~ +1.0
+    daily_trend = atr_val * score_norm * 0.35   # 최대 ATR의 ±35%
+
+    # ── 2. 계단지표 추가 편향 ──
     if staircase_signal == "up":
-        bias += atr_val * 0.1
+        daily_trend += atr_val * 0.12
     elif staircase_signal == "down":
-        bias -= atr_val * 0.1
+        daily_trend -= atr_val * 0.12
+
+    # ── 3. BB 확장 계수 (시간이 갈수록 범위 넓힘) ──
+    bb_mid = None
+    bb_half_width = None
+    if bb_upper and bb_lower:
+        bb_mid = (bb_upper + bb_lower) / 2
+        bb_half_width = (bb_upper - bb_lower) / 2
 
     candles = []
     prev_close = last_close
@@ -297,51 +299,67 @@ def _generate_predicted_candles(
         while d.weekday() >= 5:
             d += timedelta(days=1)
 
+        progress = i / max(1, n_days - 1)       # 0.0 ~ 1.0
         remaining = n_days - i
-        confidence = max(0.2, 1.0 - i * 0.03)
+        confidence = max(0.3, 1.0 - progress * 0.5)
 
-        # 1) 수박지표: 스퀴즈 시 변동성 축소 → 후반에 확대
+        # ── 4. 수박지표: 스퀴즈 → 초반 축소, 후반 폭발 ──
         if is_squeeze:
-            squeeze_phase = min(1.0, i / max(5, n_days * 0.4))
-            volatility_mult = 0.4 + squeeze_phase * 0.8  # 0.4x → 1.2x
+            squeeze_phase = min(1.0, i / max(5, n_days * 0.3))
+            vol_mult = 0.35 + squeeze_phase * 1.0  # 0.35x → 1.35x
         else:
-            volatility_mult = 1.0
+            vol_mult = 0.8 + progress * 0.4  # 0.8x → 1.2x (자연 확산)
 
-        # 2) 추세 편향 (decay 적용)
-        drift = bias * confidence * volatility_mult
+        # ── 5. 랜덤 노이즈 (실제 주가처럼 매일 등락) ──
+        noise = rng.normal(0, 1) * atr_val * 0.35 * vol_mult
 
-        # 3) 타겟 수렴 (단기 < 15일, 장기 >= 15일)
+        # ── 6. 추세 + 노이즈 결합 ──
+        drift = daily_trend * confidence + noise
+
+        # ── 7. SMA20 약한 회귀 (너무 멀어지면 살짝 당김) ──
+        if sma20_val and sma20_val > 0:
+            dist_pct = (prev_close - sma20_val) / sma20_val
+            if abs(dist_pct) > 0.03:  # 3% 이상 벗어났을 때만
+                drift -= dist_pct * atr_val * 0.15
+
+        # ── 8. 매도 타겟 수렴 (부드럽게) ──
         target = sell_short_price if i < 15 else sell_long_price
         if target is not None and remaining > 0:
-            target_pull = (target - prev_close) / remaining * 0.3
-            drift = drift * 0.5 + target_pull * 0.5
+            gap_to_target = target - prev_close
+            # 남은 날에 걸쳐 자연스럽게 접근 (20%씩)
+            drift += gap_to_target / remaining * 0.2
 
-        # 4) SMA20 평균 회귀
-        if sma20_val and sma20_val > 0:
-            distance_pct = (prev_close - sma20_val) / sma20_val
-            reversion_force = -distance_pct * atr_val * 0.4 * (1 - confidence)
-            drift += reversion_force
-
-        # 5) BB 범위 제약
+        # ── 9. BB 소프트 제약 (하드 클램프 대신 탄성) ──
         projected = prev_close + drift
-        if bb_upper and projected > bb_upper * 1.02:
-            projected = bb_upper * 1.02
-            drift = projected - prev_close
-        if bb_lower and projected < bb_lower * 0.98:
-            projected = bb_lower * 0.98
-            drift = projected - prev_close
+        if bb_mid is not None and bb_half_width is not None:
+            expanded_half = bb_half_width * (1.0 + progress * 0.6)  # 시간에 따라 BB 확장
+            soft_upper = bb_mid + expanded_half
+            soft_lower = bb_mid - expanded_half
+            if projected > soft_upper:
+                overshoot = projected - soft_upper
+                projected = soft_upper + overshoot * 0.3  # 30%만 허용
+                drift = projected - prev_close
+            elif projected < soft_lower:
+                overshoot = soft_lower - projected
+                projected = soft_lower - overshoot * 0.3
+                drift = projected - prev_close
 
-        o = prev_close
-        c = o + drift
+        # ── 10. 캔들 모양 생성 (자연스러운 몸통+꼬리) ──
+        o = prev_close + rng.normal(0, 1) * atr_val * 0.05  # 갭 오픈
+        c = prev_close + drift
 
-        # 6) 계단지표: 그리드 크기가 있으면 종가를 그리드 단위에 스냅
+        # 계단 grid snap (있으면)
         if staircase_grid_size > 0:
             c = round(c / staircase_grid_size) * staircase_grid_size
 
-        # 일별 변동 범위
-        range_mult = (0.3 * confidence + 0.15) * volatility_mult
-        h = max(o, c) + atr_val * range_mult
-        lo = min(o, c) - atr_val * (range_mult * 0.7)
+        body_top = max(o, c)
+        body_bot = min(o, c)
+
+        # 꼬리 길이: 랜덤하게 비대칭 (실제 캔들처럼)
+        upper_wick = abs(rng.normal(0, 1)) * atr_val * 0.25 * vol_mult
+        lower_wick = abs(rng.normal(0, 1)) * atr_val * 0.2 * vol_mult
+        h = body_top + upper_wick
+        lo = body_bot - lower_wick
 
         candles.append({
             "time": d.isoformat(),
