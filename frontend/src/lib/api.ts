@@ -81,8 +81,9 @@ export async function fetchPrediction(
   ticker: string,
   startDate: string,
   endDate: string,
+  nDays: number = 7,
 ): Promise<PredictionResult> {
-  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, n_days: String(nDays) })
   const url = buildApiUrl(`/api/stock/${encodeURIComponent(ticker)}/predict?${params}`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)

@@ -1,135 +1,172 @@
+/* ── 레이아웃 ─────────────────────────────────────────────────── */
 .app {
   display: flex;
   flex-direction: column;
   min-height: 100svh;
 }
 
+/* ── 헤더 ─────────────────────────────────────────────────────── */
 .header {
-  padding: 24px 20px;
+  padding: 16px 20px 14px;
   border-bottom: 1px solid var(--border);
   display: flex;
-  flex-direction: column; /* 제목과 폼을 위아래로 배치하여 공간 확보 */
-  gap: 20px;
-  align-items: flex-start;
-  background-color: var(--card-bg); /* 배경색 명시 (선택사항) */
+  flex-direction: column;
+  gap: 12px;
 }
 
+.headerTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
 
-.title h1 {
-  font-size: 24px;
-  margin-bottom: 4px;
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
   color: var(--text-h);
 }
 
-.subtitle {
-  color: var(--text);
-}
-
-.form {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap; /* 요소가 많으면 자동으로 다음 줄로 */
-  align-items: flex-end;
-  width: 100%; /* 전체 너비 사용 */
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  text-align: left;
-  flex: 1; /* 가용한 공간을 나눠 가짐 */
-  min-width: 140px; /* 너무 좁아지지 않게 방지 */
-}
-
-.field span {
+.logoSub {
   font-size: 13px;
   color: var(--text);
 }
 
-.field input {
-  height: 38px;
-  border-radius: 10px;
+/* 검색 바 */
+.searchBar {
+  display: flex;
+  gap: 8px;
+}
+
+.searchInput {
+  flex: 1;
+  height: 44px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.03);
   color: var(--text-h);
-  padding: 0 12px;
+  padding: 0 14px;
+  font-size: 15px;
   outline: none;
+  transition: border-color 0.2s;
+}
+.searchInput:focus {
+  border-color: var(--accent-border);
 }
 
 @media (prefers-color-scheme: dark) {
-  .field input {
+  .searchInput {
     background: rgba(255, 255, 255, 0.04);
   }
 }
 
-.btn {
-  height: 38px;
-  padding: 0 18px;
-  border-radius: 10px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+/* 날짜 행 */
+.dateRow {
+  display: flex;
+  gap: 10px;
 }
 
-.btn:nth-of-type(2) {
-  background: #3b82f6; /* 파란색 계열로 포인트 */
+.dateField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.dateField input {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.03);
+  color: var(--text-h);
+  padding: 0 10px;
+  font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dateField input {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}
+
+/* ── 버튼 ─────────────────────────────────────────────────────── */
+.btnPrimary {
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--accent);
   color: white;
   border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
 }
-.btn:hover:not(:disabled) {
+.btnPrimary:hover:not(:disabled) {
   filter: brightness(1.1);
-  transform: translateY(-1px);
 }
-
-.btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-/* 예측 카드 margin 추가 */
-.predictionCard {
-  margin-top: 14px;
-}
-
-.btn:disabled {
-  opacity: 0.6;
+.btnPrimary:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-
-
-.main {
-  padding: 16px 20px 24px;
+.btnSmall {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  background: transparent;
+  color: var(--text-h);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btnSmall:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+.btnSmall:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
+/* ── 메인 콘텐츠 ─────────────────────────────────────────────── */
+.main {
+  padding: 14px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── 알림 배너 ────────────────────────────────────────────────── */
 .alert {
   border: 1px solid rgba(239, 68, 68, 0.4);
   background: rgba(239, 68, 68, 0.08);
   color: var(--text-h);
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
   text-align: left;
 }
 
 .alertInfo {
-  border: 1px solid rgba(234, 179, 8, 0.4);
-  background: rgba(234, 179, 8, 0.08);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  background: rgba(234, 179, 8, 0.07);
   color: var(--text-h);
-  border-radius: 12px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  text-align: left;
+  border-radius: 10px;
+  padding: 10px 14px;
   font-size: 14px;
+  text-align: left;
 }
 
+/* ── 카드 공통 ────────────────────────────────────────────────── */
 .card {
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(0, 0, 0, 0.015);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -138,79 +175,365 @@
   }
 }
 
-@media (max-width: 600px) {
-  .form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .field {
-    width: 100%;
-  }
-  .btn {
-    width: 100%;
-  }
-}
-
-.cardHeader {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.meta {
-  text-align: left;
-}
-
-.metaTitle {
-  font-weight: 600;
-  color: var(--text-h);
-}
-
-.metaSub {
-  font-size: 13px;
-  color: var(--text);
-  margin-top: 2px;
-}
-
-.chart {
-  width: 100%;
-  height: 520px;
-}
-
-.recommendationCard {
-  margin-top: 14px;
-}
-
-.recommendList {
+/* ── 차트 카드 ────────────────────────────────────────────────── */
+.chartCard {
   display: flex;
   flex-direction: column;
 }
 
-.recommendItem {
+.chartHeader {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.stockTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.stockPrice {
+  font-size: 14px;
+  color: var(--text-h);
+  margin-top: 2px;
+}
+
+.stockMeta {
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* 점수 게이지 */
+.scoreBox {
+  text-align: center;
+  border: 2px solid;
+  border-radius: 12px;
+  padding: 8px 16px;
+  min-width: 90px;
+}
+
+.scoreNum {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.scoreLabel {
+  font-size: 12px;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.scoreBar {
+  height: 4px;
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.scoreBarFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* 차트 컨테이너 */
+.chartWrap {
+  position: relative;
+  width: 100%;
+  height: 560px;
+}
+
+.chartLegend {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 10;
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.chartError {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  color: #ff8a8a;
+  padding: 20px;
+  z-index: 50;
+  overflow: auto;
+  font-size: 14px;
+}
+.chartError pre {
+  white-space: pre-wrap;
+  margin-top: 8px;
+}
+
+/* ── 예측 버튼 바 ─────────────────────────────────────────────── */
+.predBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.predBarLabel {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.predBtnGroup {
+  display: flex;
+  gap: 6px;
+}
+
+.predBtn {
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-h);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.predBtn:hover:not(:disabled) {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+.predBtnActive {
+  background: var(--accent) !important;
+  color: white !important;
+  border-color: var(--accent) !important;
+}
+.predBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.predBarLoading {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* ── 예측 결과 카드 ───────────────────────────────────────────── */
+.predCard {
+  padding: 16px;
+}
+
+.predCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.predScore {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.predOutlook {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.predOutlook strong {
+  color: var(--text-h);
+}
+
+.predSummary {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.signalList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.signalItem {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.signalDot {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.signalLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.signalDesc {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.sellTargets {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.sellCard {
+  flex: 1;
+  min-width: 160px;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.sellShort {
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+}
+.sellLong {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.sellLabel {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.sellPrice {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.sellDesc {
+  font-size: 11px;
+  color: var(--text);
+  margin-top: 3px;
+}
+
+/* ── 추천 종목 카드 ───────────────────────────────────────────── */
+.recHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.recList {
+  display: flex;
+  flex-direction: column;
+}
+
+.recItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--text-h);
-  padding: 10px 14px;
+  padding: 12px 16px;
   cursor: pointer;
   text-align: left;
+  font-size: 14px;
+  transition: background 0.1s;
 }
-
-.recommendItem:last-child {
+.recItem:last-child {
   border-bottom: 0;
 }
-
-.recommendItem strong {
-  color: var(--text-h);
+.recItem:hover {
+  background: var(--accent-bg);
 }
 
-.recommendEmpty {
-  padding: 14px;
+.recRank {
+  font-weight: 700;
+  width: 24px;
+  text-align: center;
   color: var(--text);
-  text-align: left;
+}
+
+.recName {
+  font-weight: 600;
+  flex: 1;
+}
+
+.recTicker {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.recScore {
+  font-weight: 800;
+  font-size: 16px;
+  min-width: 30px;
+  text-align: right;
+}
+
+.recEmpty {
+  padding: 16px;
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ── 반응형 ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .header {
+    padding: 12px 14px;
+  }
+  .main {
+    padding: 10px 14px 24px;
+  }
+  .chartHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .scoreBox {
+    align-self: flex-start;
+  }
+  .chartWrap {
+    height: 420px;
+  }
+  .predBar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .predOutlook {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .dateRow {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .sellTargets {
+    flex-direction: column;
+  }
 }

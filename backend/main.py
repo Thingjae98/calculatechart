@@ -251,15 +251,30 @@ def _generate_predicted_candles(
     atr_val: float,
     prediction_score: int,
     sell_short_price: int | None,
+    sell_long_price: int | None,
+    sma20_val: float | None,
+    bb_upper: float | None,
+    bb_lower: float | None,
     n_days: int = 7,
 ) -> list[dict]:
-    """예측 점수와 ATR을 기반으로 미래 일봉 n개를 생성합니다. (주말 제외)"""
+    """
+    기술적 지표 기반 미래 일봉 생성 (30일까지 지원).
+    - 추세 편향: prediction_score 기반
+    - 평균 회귀: SMA20 방향으로 끌림
+    - 변동성: ATR 기반 일별 범위
+    - 타겟 수렴: 단기/장기 매도가 방향
+    - 볼린저 밴드 범위 제약: BB 밖으로 벗어나지 않도록
+    - 일수가 길어질수록 confidence decay 적용
+    """
+    # 추세 편향
     if prediction_score >= 65:
-        base_drift = atr_val * 0.3
-    elif prediction_score >= 45:
-        base_drift = atr_val * 0.05
+        bias = atr_val * 0.25
+    elif prediction_score >= 50:
+        bias = atr_val * 0.05
+    elif prediction_score >= 40:
+        bias = -atr_val * 0.05
     else:
-        base_drift = -atr_val * 0.3
+        bias = -atr_val * 0.25
 
     candles = []
     prev_close = last_close
@@ -267,20 +282,43 @@ def _generate_predicted_candles(
 
     for i in range(n_days):
         d += timedelta(days=1)
-        while d.weekday() >= 5:  # 토(5)/일(6) 건너뜀
+        while d.weekday() >= 5:
             d += timedelta(days=1)
 
         remaining = n_days - i
-        if sell_short_price is not None and remaining > 0:
-            target_drift = (sell_short_price - prev_close) / remaining * 0.5
-            drift = target_drift * 0.6 + base_drift * 0.4
-        else:
-            drift = base_drift
+        # confidence decay: 시간이 갈수록 추세 영향 줄이고 평균 회귀 강화
+        confidence = max(0.2, 1.0 - i * 0.03)
+
+        # 1) 추세 편향 (decay 적용)
+        drift = bias * confidence
+
+        # 2) 타겟 수렴 (단기 < 15일, 장기 >= 15일)
+        target = sell_short_price if i < 15 else sell_long_price
+        if target is not None and remaining > 0:
+            target_pull = (target - prev_close) / remaining * 0.3
+            drift = drift * 0.5 + target_pull * 0.5
+
+        # 3) SMA20 평균 회귀 (가격이 SMA에서 멀수록 강하게 당김)
+        if sma20_val and sma20_val > 0:
+            distance_pct = (prev_close - sma20_val) / sma20_val
+            reversion_force = -distance_pct * atr_val * 0.4 * (1 - confidence)
+            drift += reversion_force
+
+        # 4) 볼린저 밴드 범위 제약
+        projected = prev_close + drift
+        if bb_upper and projected > bb_upper * 1.02:
+            projected = bb_upper * 1.02
+            drift = projected - prev_close
+        if bb_lower and projected < bb_lower * 0.98:
+            projected = bb_lower * 0.98
+            drift = projected - prev_close
 
         o = prev_close
         c = o + drift
-        h = max(o, c) + atr_val * 0.3
-        lo = min(o, c) - atr_val * 0.2
+        # 일별 변동 범위도 confidence에 비례
+        range_mult = 0.3 * confidence + 0.15
+        h = max(o, c) + atr_val * range_mult
+        lo = min(o, c) - atr_val * (range_mult * 0.7)
 
         candles.append({
             "time": d.isoformat(),
@@ -479,7 +517,12 @@ async def get_recommendations(limit: int = Query(10, ge=1, le=50)):
     
 
 @app.get("/api/stock/{ticker_or_name}/predict")
-async def predict_stock(ticker_or_name: str, start_date: str | None = None, end_date: str | None = None):
+async def predict_stock(
+    ticker_or_name: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    n_days: int = Query(7, ge=1, le=30, description="예측할 영업일 수 (1~30)"),
+):
     try:
         try:
             ticker, stock_name = _resolve_ticker(ticker_or_name)
@@ -708,16 +751,23 @@ async def predict_stock(ticker_or_name: str, start_date: str | None = None, end_
             outlook_short, outlook_mid = "하락 주의", "조정 가능성 존재"
             summary = "하락 지표가 우세합니다. 리스크 관리에 유의하세요."
 
-        # 예측 캔들 생성 (미래 7 영업일)
+        # 예측 캔들 생성 (미래 n 영업일)
         last_date = str(df["time"].iloc[-1])
         atr_for_pred = float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02
+        sma20_last = float(sma20.iloc[-1]) if not sma20.dropna().empty else None
+        bb_up_last = float(bb_up.iloc[-1]) if not bb_up.dropna().empty else None
+        bb_dn_last = float(bb_dn.iloc[-1]) if not bb_dn.dropna().empty else None
         predicted_candles = _generate_predicted_candles(
             last_date=last_date,
             last_close=cur,
             atr_val=atr_for_pred,
             prediction_score=final_score,
             sell_short_price=sell_short_price,
-            n_days=7,
+            sell_long_price=sell_long_price,
+            sma20_val=sma20_last,
+            bb_upper=bb_up_last,
+            bb_lower=bb_dn_last,
+            n_days=n_days,
         )
 
         result = {
