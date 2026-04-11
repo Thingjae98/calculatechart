@@ -63,7 +63,18 @@ export interface PredictionResult {
   summary: string
   signals: PredictionSignal[]
   sell_targets?: SellTargets
+  predicted_candles?: Candle[]
   error?: string
+}
+
+/** Render 무료 플랜 cold start 해결용: 서버를 미리 깨움 */
+export async function pingServer(): Promise<boolean> {
+  try {
+    const res = await fetch(buildApiUrl('/api/ping'), { method: 'GET' })
+    return res.ok
+  } catch {
+    return false
+  }
 }
 
 export async function fetchPrediction(

@@ -245,6 +245,55 @@ def _score_stock(df: pd.DataFrame, support_lines: list[float]) -> tuple[int, dic
     return int(score), breakdown
 
 
+def _generate_predicted_candles(
+    last_date: str,
+    last_close: float,
+    atr_val: float,
+    prediction_score: int,
+    sell_short_price: int | None,
+    n_days: int = 7,
+) -> list[dict]:
+    """예측 점수와 ATR을 기반으로 미래 일봉 n개를 생성합니다. (주말 제외)"""
+    if prediction_score >= 65:
+        base_drift = atr_val * 0.3
+    elif prediction_score >= 45:
+        base_drift = atr_val * 0.05
+    else:
+        base_drift = -atr_val * 0.3
+
+    candles = []
+    prev_close = last_close
+    d = date.fromisoformat(last_date)
+
+    for i in range(n_days):
+        d += timedelta(days=1)
+        while d.weekday() >= 5:  # 토(5)/일(6) 건너뜀
+            d += timedelta(days=1)
+
+        remaining = n_days - i
+        if sell_short_price is not None and remaining > 0:
+            target_drift = (sell_short_price - prev_close) / remaining * 0.5
+            drift = target_drift * 0.6 + base_drift * 0.4
+        else:
+            drift = base_drift
+
+        o = prev_close
+        c = o + drift
+        h = max(o, c) + atr_val * 0.3
+        lo = min(o, c) - atr_val * 0.2
+
+        candles.append({
+            "time": d.isoformat(),
+            "open": max(1, round(o)),
+            "high": max(1, round(h)),
+            "low": max(1, round(lo)),
+            "close": max(1, round(c)),
+        })
+        prev_close = c
+
+    return candles
+
+
 def _detect_box_range(df: pd.DataFrame) -> dict:
     """
     박스권 탐지 조건(요청 사양):
@@ -302,6 +351,12 @@ def _load_stock_for_score_sync(ticker: str, end_day: str) -> tuple[pd.DataFrame,
 @app.get("/")
 def read_root():
     return {"message": "주식 분석 API 서버가 정상적으로 실행 중입니다."}
+
+
+@app.get("/api/ping")
+def ping():
+    """Render 무료 플랜 cold start 해결용: 프론트엔드가 앱 진입 시 이 엔드포인트로 서버를 미리 깨움"""
+    return {"status": "ok"}
 
 
 @app.get("/api/stock/{ticker_or_name}")
@@ -653,6 +708,18 @@ async def predict_stock(ticker_or_name: str, start_date: str | None = None, end_
             outlook_short, outlook_mid = "하락 주의", "조정 가능성 존재"
             summary = "하락 지표가 우세합니다. 리스크 관리에 유의하세요."
 
+        # 예측 캔들 생성 (미래 7 영업일)
+        last_date = str(df["time"].iloc[-1])
+        atr_for_pred = float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02
+        predicted_candles = _generate_predicted_candles(
+            last_date=last_date,
+            last_close=cur,
+            atr_val=atr_for_pred,
+            prediction_score=final_score,
+            sell_short_price=sell_short_price,
+            n_days=7,
+        )
+
         result = {
             "ticker": ticker,
             "stock_name": stock_name,
@@ -668,6 +735,7 @@ async def predict_stock(ticker_or_name: str, start_date: str | None = None, end_
                 "short_term_desc": "단기 매도 목표 (BB 상단 기반)" if sell_short_price else None,
                 "long_term_desc": "장기 매도 목표 (60일 최고가+ATR 기반)" if sell_long_price else None,
             },
+            "predicted_candles": predicted_candles,
         }
         return result
 

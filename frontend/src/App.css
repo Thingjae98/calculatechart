@@ -114,6 +114,17 @@
   text-align: left;
 }
 
+.alertInfo {
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  background: rgba(234, 179, 8, 0.08);
+  color: var(--text-h);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  text-align: left;
+  font-size: 14px;
+}
+
 .card {
   border: 1px solid var(--border);
   border-radius: 16px;
