@@ -191,58 +191,329 @@ def _support_resistance(close_values: np.ndarray, max_lines: int = 1) -> tuple[l
     return support, resistance
 
 
-def _score_stock(df: pd.DataFrame, support_lines: list[float]) -> tuple[int, dict]:
+def _unified_score(
+    df: pd.DataFrame,
+    support_lines: list[float] | None = None,
+    resistance_lines: list[float] | None = None,
+    box_range: dict | None = None,
+) -> tuple[int, list[dict], dict]:
+    """
+    통합 기술적 점수 계산 (기본 차트 + 예측 모두 이 함수 사용).
+
+    기준점 50 (중립). 각 지표가 ±점수.
+    반환: (최종점수, 시그널 리스트, 내부 지표값 dict)
+    """
     close = pd.to_numeric(df["close"], errors="coerce")
     open_ = pd.to_numeric(df["open"], errors="coerce")
-    vol = pd.to_numeric(df["volume"], errors="coerce")
-    current_close = float(close.iloc[-1])
+    vol   = pd.to_numeric(df["volume"], errors="coerce")
+    high  = pd.to_numeric(df["high"], errors="coerce")
+    low   = pd.to_numeric(df["low"], errors="coerce")
 
-    score = 0
-    breakdown = {
-        "support_proximity": 0,
-        "oversold_rsi": 0,
-        "long_term_trend": 0,
-        "volume_rebound": 0,
-    }
+    cur = float(close.iloc[-1])
+    score = 50
+    signals: list[dict] = []
 
-    # 1) 지지선 근접 +40
-    if support_lines:
-        strongest_support = float(support_lines[0])
-        if strongest_support > 0 and current_close <= strongest_support * 1.03:
-            score += 40
-            breakdown["support_proximity"] = 40
+    # ── 이동평균 계산 ──
+    sma5   = close.rolling(5).mean()
+    sma20  = close.rolling(20).mean()
+    sma60  = close.rolling(60).mean()
+    sma120 = close.rolling(120).mean()
+    sma224 = close.rolling(224).mean()
 
-    # 2) RSI(14) <= 30 +30
+    # ── RSI 계산 ──
     if ta is not None:
-        rsi14 = ta.rsi(close, length=14)
+        rsi_series = ta.rsi(close, length=14)
     else:
         delta = close.diff()
-        gain = delta.clip(lower=0).rolling(14).mean()
-        loss = (-delta.clip(upper=0)).rolling(14).mean()
-        rs = gain / loss.replace(0, np.nan)
-        rsi14 = 100 - (100 / (1 + rs))
-    if rsi14 is not None and not rsi14.dropna().empty and float(rsi14.iloc[-1]) <= 30:
-        score += 30
-        breakdown["oversold_rsi"] = 30
+        gain  = delta.clip(lower=0).rolling(14).mean()
+        loss  = (-delta.clip(upper=0)).rolling(14).mean()
+        rs    = gain / loss.replace(0, np.nan)
+        rsi_series = 100 - (100 / (1 + rs))
 
-    # 3) 종가 > SMA120 +20
-    sma120 = close.rolling(120).mean()
-    if not sma120.dropna().empty and current_close > float(sma120.iloc[-1]):
-        score += 20
-        breakdown["long_term_trend"] = 20
+    # ── MACD 계산 ──
+    ema12       = close.ewm(span=12, adjust=False).mean()
+    ema26       = close.ewm(span=26, adjust=False).mean()
+    macd_line   = ema12 - ema26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    histogram   = macd_line - signal_line
 
-    # 4) 거래량 동반 반등 +10
+    # ── 볼린저 밴드 계산 ──
+    bb_mid = close.rolling(20).mean()
+    bb_std = close.rolling(20).std()
+    bb_up  = bb_mid + 2 * bb_std
+    bb_dn  = bb_mid - 2 * bb_std
+
+    # ── ATR 계산 ──
+    tr = pd.concat([
+        high - low,
+        (high - close.shift(1)).abs(),
+        (low - close.shift(1)).abs(),
+    ], axis=1).max(axis=1)
+    atr14 = tr.rolling(14).mean()
+
+    # ══════════════════════════════════════════════
+    # 1. 이평선 배열 (±12)
+    # ══════════════════════════════════════════════
+    if not sma120.dropna().empty and not sma20.dropna().empty and not sma60.dropna().empty:
+        s5  = float(sma5.iloc[-1]) if not sma5.dropna().empty else cur
+        s20 = float(sma20.iloc[-1])
+        s60 = float(sma60.iloc[-1])
+        s120 = float(sma120.iloc[-1])
+
+        if cur > s5 > s20 > s60 > s120:
+            score += 12
+            signals.append({"type": "positive", "label": "주가 흐름 좋음 📈",
+                            "desc": "최근 주가가 꾸준히 오르고 있어요."})
+        elif cur > s20 > s60:
+            score += 6
+            signals.append({"type": "positive", "label": "주가 흐름 괜찮음 📈",
+                            "desc": "중단기 흐름이 상승 중이에요."})
+        elif cur < s5 < s20 < s60 < s120:
+            score -= 12
+            signals.append({"type": "negative", "label": "주가 흐름 안 좋음 📉",
+                            "desc": "주가가 계속 내려가고 있어요."})
+        elif cur < s20 < s60:
+            score -= 6
+            signals.append({"type": "negative", "label": "주가 흐름 약함 📉",
+                            "desc": "중단기 흐름이 하락 중이에요."})
+
+    # ══════════════════════════════════════════════
+    # 2. 이격도: 현재가 vs SMA20 (±8)
+    # ══════════════════════════════════════════════
+    if not sma20.dropna().empty:
+        s20_val = float(sma20.iloc[-1])
+        if s20_val > 0:
+            disparity = (cur - s20_val) / s20_val * 100
+            if disparity < -5:
+                score += 8
+                signals.append({"type": "positive", "label": f"평균보다 많이 싸요 ({disparity:.1f}%)",
+                                "desc": "20일 평균 가격보다 많이 내려와 있어요. 반등 가능성."})
+            elif disparity < -2:
+                score += 3
+            elif disparity > 7:
+                score -= 8
+                signals.append({"type": "negative", "label": f"평균보다 많이 비싸요 (+{disparity:.1f}%)",
+                                "desc": "20일 평균보다 많이 올라와 있어요. 조정이 올 수 있어요."})
+            elif disparity > 3:
+                score -= 3
+
+    # ══════════════════════════════════════════════
+    # 3. RSI (±12) — 세분화
+    # ══════════════════════════════════════════════
+    rsi_val = None
+    if rsi_series is not None and not rsi_series.dropna().empty:
+        rsi_val = float(rsi_series.iloc[-1])
+        if rsi_val <= 25:
+            score += 12
+            signals.append({"type": "positive", "label": f"많이 떨어진 상태 ({rsi_val:.0f}점)",
+                            "desc": "주가가 많이 내려와서 반등 가능성이 높아요."})
+        elif rsi_val <= 35:
+            score += 6
+            signals.append({"type": "positive", "label": f"좀 싼 편 ({rsi_val:.0f}점)",
+                            "desc": "주가가 낮은 편이에요. 매수 기회일 수 있어요."})
+        elif rsi_val >= 75:
+            score -= 12
+            signals.append({"type": "negative", "label": f"많이 오른 상태 ({rsi_val:.0f}점)",
+                            "desc": "단기간에 많이 올라서 내려갈 수 있어요."})
+        elif rsi_val >= 65:
+            score -= 6
+            signals.append({"type": "negative", "label": f"좀 비싼 편 ({rsi_val:.0f}점)",
+                            "desc": "주가가 높은 편이에요. 추가 매수는 신중하게."})
+        else:
+            signals.append({"type": "neutral", "label": f"보통 상태 ({rsi_val:.0f}점)",
+                            "desc": "지금은 특별히 싸지도, 비싸지도 않아요."})
+
+    # ══════════════════════════════════════════════
+    # 4. MACD (±8)
+    # ══════════════════════════════════════════════
+    if not histogram.dropna().empty and len(histogram.dropna()) >= 2:
+        hist_now  = float(histogram.iloc[-1])
+        hist_prev = float(histogram.iloc[-2])
+        macd_val  = float(macd_line.iloc[-1])
+        sig_val   = float(signal_line.iloc[-1])
+
+        if macd_val > sig_val and hist_now > hist_prev:
+            score += 8
+            signals.append({"type": "positive", "label": "오를 힘이 강해지는 중 💪",
+                            "desc": "주가가 위로 올라가려는 힘이 세지고 있어요."})
+        elif macd_val > sig_val and hist_now <= hist_prev:
+            score += 3  # 골든크로스 상태지만 모멘텀 둔화
+        elif macd_val < sig_val and hist_now < hist_prev:
+            score -= 8
+            signals.append({"type": "negative", "label": "내릴 힘이 강해지는 중 ⚠️",
+                            "desc": "주가가 아래로 내려가려는 힘이 세지고 있어요."})
+        elif macd_val < sig_val and hist_now >= hist_prev:
+            score -= 3  # 데드크로스 상태지만 모멘텀 개선 중
+
+    # ══════════════════════════════════════════════
+    # 5. 볼린저 밴드 위치 (±8)
+    # ══════════════════════════════════════════════
+    if not bb_up.dropna().empty:
+        up_val = float(bb_up.iloc[-1])
+        dn_val = float(bb_dn.iloc[-1])
+        bb_mid_val = float(bb_mid.iloc[-1])
+
+        if up_val > dn_val and (up_val - dn_val) > 0:
+            # 밴드 내 위치 (0=하단, 1=상단)
+            bb_pos = (cur - dn_val) / (up_val - dn_val)
+
+            if bb_pos <= 0.0:
+                score += 8
+                signals.append({"type": "positive", "label": "바닥 근처 도달 🔻",
+                                "desc": "주가가 변동 범위의 가장 아래에 있어요. 반등 가능."})
+            elif bb_pos <= 0.2:
+                score += 4
+                signals.append({"type": "positive", "label": "바닥권에 가까움",
+                                "desc": "주가가 변동 범위의 아래쪽에 있어요."})
+            elif bb_pos >= 1.0:
+                score -= 8
+                signals.append({"type": "negative", "label": "천장 근처 도달 🔺",
+                                "desc": "주가가 변동 범위의 가장 위에 있어요. 내려갈 수 있어요."})
+            elif bb_pos >= 0.8:
+                score -= 4
+                signals.append({"type": "negative", "label": "천장권에 가까움",
+                                "desc": "주가가 변동 범위의 위쪽에 있어요."})
+
+    # ══════════════════════════════════════════════
+    # 6. 지지선/저항선 근접 (±6)
+    # ══════════════════════════════════════════════
+    if support_lines:
+        nearest_support = min(support_lines, key=lambda s: abs(cur - s) if s > 0 else float('inf'))
+        if nearest_support > 0:
+            dist_support = (cur - nearest_support) / nearest_support
+            if -0.02 <= dist_support <= 0.03:
+                score += 6
+                signals.append({"type": "positive", "label": "지지선 근처 💎",
+                                "desc": f"지지선({int(nearest_support):,}원) 근처에서 버티고 있어요."})
+
+    if resistance_lines:
+        nearest_resist = min(resistance_lines, key=lambda r: abs(cur - r) if r > 0 else float('inf'))
+        if nearest_resist > 0:
+            dist_resist = (nearest_resist - cur) / nearest_resist
+            if 0 <= dist_resist <= 0.03:
+                score -= 4
+                signals.append({"type": "negative", "label": "저항선 근처 🧱",
+                                "desc": f"저항선({int(nearest_resist):,}원) 근처에서 막힐 수 있어요."})
+
+    # ══════════════════════════════════════════════
+    # 7. 박스권 위치 (±5)
+    # ══════════════════════════════════════════════
+    if box_range and box_range.get("is_box"):
+        box_top = box_range.get("top", 0)
+        box_bot = box_range.get("bottom", 0)
+        if box_top > box_bot > 0:
+            box_pos = (cur - box_bot) / (box_top - box_bot)
+            if box_pos <= 0.2:
+                score += 5
+                signals.append({"type": "positive", "label": "박스권 바닥 근처 📦",
+                                "desc": "박스권 아래쪽에서 반등할 수 있는 자리에요."})
+            elif box_pos >= 0.8:
+                score -= 5
+                signals.append({"type": "negative", "label": "박스권 천장 근처 📦",
+                                "desc": "박스권 위쪽이라 눌릴 수 있어요."})
+
+    # ══════════════════════════════════════════════
+    # 8. 거래량 (±5)
+    # ══════════════════════════════════════════════
     vol_ma5 = vol.rolling(5).mean()
-    if (
-        len(vol) >= 5
-        and not vol_ma5.dropna().empty
-        and float(vol.iloc[-1]) >= float(vol_ma5.iloc[-1]) * 1.5
-        and float(close.iloc[-1]) > float(open_.iloc[-1])
-    ):
-        score += 10
-        breakdown["volume_rebound"] = 10
+    if len(vol) >= 5 and not vol_ma5.dropna().empty:
+        cur_vol = float(vol.iloc[-1])
+        avg_vol = float(vol_ma5.iloc[-1])
+        if avg_vol > 0 and cur_vol >= avg_vol * 1.5:
+            if float(close.iloc[-1]) > float(open_.iloc[-1]):
+                score += 5
+                signals.append({"type": "positive", "label": "거래량 폭발 + 양봉 🔥",
+                                "desc": "많은 사람이 사면서 주가가 올랐어요."})
+            else:
+                score -= 5
+                signals.append({"type": "negative", "label": "거래량 폭발 + 음봉 💨",
+                                "desc": "많은 사람이 팔면서 주가가 내렸어요."})
 
-    return int(score), breakdown
+    # ══════════════════════════════════════════════
+    # 9. 수박지표 (BB 스퀴즈 + 이평선 수렴) (+5~8)
+    # ══════════════════════════════════════════════
+    is_squeeze = False
+    staircase_signal = None
+
+    if not bb_up.dropna().empty and not bb_mid.dropna().empty:
+        bb_width_pct = (bb_up - bb_dn) / bb_mid * 100
+        bb_width_min_20 = bb_width_pct.rolling(20).min()
+        if not bb_width_pct.dropna().empty and not bb_width_min_20.dropna().empty:
+            is_squeeze = float(bb_width_pct.iloc[-1]) <= float(bb_width_min_20.iloc[-1]) * 1.3
+
+    ma_convergence = None
+    if not sma5.dropna().empty and not sma224.dropna().empty:
+        ma_vals = [float(sma5.iloc[-1]), float(sma20.iloc[-1]),
+                   float(sma60.iloc[-1]), float(sma224.iloc[-1])]
+        ma_spread = max(ma_vals) - min(ma_vals)
+        ma_convergence = ma_spread / cur * 100 if cur > 0 else None
+
+    disparity_20 = None
+    if not sma20.dropna().empty:
+        disparity_20 = (cur / float(sma20.iloc[-1])) * 100 - 100
+
+    if is_squeeze and ma_convergence is not None and ma_convergence < 2.0:
+        if disparity_20 is not None and abs(disparity_20) < 3.0:
+            label = "큰 움직임 준비 중 🍉"
+            desc = "주가가 좁은 범위에서 모이고 있어요. 곧 크게 움직일 수 있어요."
+            if not sma224.dropna().empty and cur > float(sma224.iloc[-1]):
+                score += 8
+                label = "큰 상승 준비 중 🍉💪"
+                desc = "장기 평균 위에서 힘을 모으고 있어요. 크게 오를 가능성."
+            else:
+                score += 5
+            signals.append({"type": "positive", "label": label, "desc": desc})
+    elif is_squeeze:
+        signals.append({"type": "neutral", "label": "주가가 쉬는 중 😴",
+                        "desc": "주가 변동이 줄어들고 있어요. 곧 움직임이 커질 수 있어요."})
+
+    # ══════════════════════════════════════════════
+    # 10. 계단지표 (±5)
+    # ══════════════════════════════════════════════
+    if not atr14.dropna().empty and len(close) >= 20:
+        atr_val_local = float(atr14.iloc[-1])
+        grid_size = atr_val_local * 0.5
+        if grid_size > 0:
+            close_arr = close.tail(20).values
+            grids = np.floor(close_arr / grid_size) * grid_size
+            current_level = grids[-1]
+            count = 1
+            for idx in range(len(grids) - 2, -1, -1):
+                if abs(grids[idx] - current_level) < grid_size * 0.001:
+                    count += 1
+                else:
+                    break
+            prev_level = grids[0]
+            if count >= 3:
+                if current_level > prev_level + grid_size * 0.5:
+                    staircase_signal = "up"
+                elif current_level < prev_level - grid_size * 0.5:
+                    staircase_signal = "down"
+
+    if staircase_signal == "up":
+        score += 5
+        signals.append({"type": "positive", "label": "한 계단씩 오르는 중 🪜",
+                        "desc": "주가가 한 단계씩 올라가고 있어요."})
+    elif staircase_signal == "down":
+        score -= 5
+        signals.append({"type": "negative", "label": "한 계단씩 내리는 중 🪜",
+                        "desc": "주가가 한 단계씩 내려가고 있어요."})
+
+    # ── 최종 점수 클램핑 ──
+    final_score = max(0, min(100, score))
+
+    # ── 내부 지표값 (예측용) ──
+    internals = {
+        "rsi": rsi_val,
+        "sma20": float(sma20.iloc[-1]) if not sma20.dropna().empty else None,
+        "bb_upper": float(bb_up.iloc[-1]) if not bb_up.dropna().empty else None,
+        "bb_lower": float(bb_dn.iloc[-1]) if not bb_dn.dropna().empty else None,
+        "atr14": float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02,
+        "is_squeeze": is_squeeze,
+        "staircase_signal": staircase_signal,
+    }
+
+    return final_score, signals, internals
 
 
 def _generate_predicted_candles(
@@ -428,8 +699,9 @@ def _load_stock_for_score_sync(ticker: str, end_day: str) -> tuple[pd.DataFrame,
     df = _standardize_ohlcv(raw)
     close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
     support, resistance = _support_resistance(close_values, max_lines=1)
-    score, breakdown = _score_stock(df, support)
-    return df, support, resistance, score, breakdown
+    box = _detect_box_range(df)
+    score, _signals, _internals = _unified_score(df, support, resistance, box)
+    return df, support, resistance, score, {}
 
 
 @app.get("/")
@@ -464,8 +736,9 @@ async def get_stock_data(
         data = df[["time", "open", "high", "low", "close", "volume"]].to_dict(orient="records")
         close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
         support_lines, resistance_lines = _support_resistance(close_values, max_lines=1)
-        score, score_breakdown = _score_stock(df, support_lines)
         box_range = _detect_box_range(df)
+        score, _signals, _internals = _unified_score(df, support_lines, resistance_lines, box_range)
+        score_breakdown = {}
 
         return {
             "ticker": ticker,
@@ -586,237 +859,55 @@ async def predict_stock(
             return {"error": "데이터 없음"}
 
         df = _standardize_ohlcv(raw)
-
-        # pandas_ta 컬럼명으로 수동 계산 (df.ta 액세서 대신)
         close = pd.to_numeric(df["close"], errors="coerce")
-        open_ = pd.to_numeric(df["open"], errors="coerce")
-        vol   = pd.to_numeric(df["volume"], errors="coerce")
+        high  = pd.to_numeric(df["high"], errors="coerce")
+        cur   = float(close.iloc[-1])
 
-        # 이동평균
-        sma20  = close.rolling(20).mean()
-        sma60  = close.rolling(60).mean()
-        sma120 = close.rolling(120).mean()
+        # ── 통합 점수 계산 (기본 점수와 동일한 함수) ──
+        close_values = close.dropna().to_numpy(dtype=float)
+        support_lines, resistance_lines = _support_resistance(close_values, max_lines=1)
+        box_range = _detect_box_range(df)
+        final_score, signals, internals = _unified_score(df, support_lines, resistance_lines, box_range)
 
-        # RSI
-        if ta is not None:
-            rsi_series = ta.rsi(close, length=14)
-        else:
-            delta = close.diff()
-            gain  = delta.clip(lower=0).rolling(14).mean()
-            loss  = (-delta.clip(upper=0)).rolling(14).mean()
-            rs    = gain / loss.replace(0, np.nan)
-            rsi_series = 100 - (100 / (1 + rs))
+        # internals에서 지표값 추출
+        atr_val = internals["atr14"]
+        is_squeeze = internals["is_squeeze"]
+        staircase_signal = internals["staircase_signal"]
 
-        # MACD
-        ema12       = close.ewm(span=12, adjust=False).mean()
-        ema26       = close.ewm(span=26, adjust=False).mean()
-        macd_line   = ema12 - ema26
-        signal_line = macd_line.ewm(span=9, adjust=False).mean()
-        histogram   = macd_line - signal_line
-
-        # 볼린저 밴드
-        bb_mid = close.rolling(20).mean()
-        bb_std = close.rolling(20).std()
-        bb_up  = bb_mid + 2 * bb_std
-        bb_dn  = bb_mid - 2 * bb_std
-
-        # 추가 이동평균 (Pine Script 계단지표 연동)
-        sma5   = close.rolling(5).mean()
-        sma112 = close.rolling(112).mean()
-        sma224 = close.rolling(224).mean()
-
-        cur       = float(close.iloc[-1])
-        signals   = []
-        score     = 50
-
-        # ──────────────────────────────────────────────
-        # 1. 이동평균 (기존)
-        # ──────────────────────────────────────────────
-        if not sma120.dropna().empty:
-            s20, s60, s120 = float(sma20.iloc[-1]), float(sma60.iloc[-1]), float(sma120.iloc[-1])
-            if cur > s20 > s60 > s120:
-                score += 15
-                signals.append({"type": "positive", "label": "주가 흐름 좋음 📈", "desc": "최근 주가가 꾸준히 오르고 있어요. 상승 흐름이 이어지고 있습니다."})
-            elif cur < s20 < s60 < s120:
-                score -= 15
-                signals.append({"type": "negative", "label": "주가 흐름 안 좋음 📉", "desc": "주가가 계속 내려가고 있어요. 지금 사면 손해볼 수 있습니다."})
-
-        # ──────────────────────────────────────────────
-        # 2. RSI (기존)
-        # ──────────────────────────────────────────────
-        if rsi_series is not None and not rsi_series.dropna().empty:
-            rsi = float(rsi_series.iloc[-1])
-            if rsi <= 30:
-                score += 15
-                signals.append({"type": "positive", "label": f"많이 떨어진 상태 ({rsi:.0f}점)", "desc": "주가가 많이 내려와서 다시 오를 가능성이 높아요."})
-            elif rsi >= 70:
-                score -= 15
-                signals.append({"type": "negative", "label": f"많이 오른 상태 ({rsi:.0f}점)", "desc": "주가가 단기간에 많이 올라서 잠시 내려갈 수 있어요."})
-            else:
-                signals.append({"type": "neutral", "label": f"보통 상태 ({rsi:.0f}점)", "desc": "지금은 특별히 싸지도, 비싸지도 않은 상태예요."})
-
-        # ──────────────────────────────────────────────
-        # 3. MACD (기존)
-        # ──────────────────────────────────────────────
-        if not histogram.dropna().empty and len(histogram.dropna()) >= 2:
-            hist_now  = float(histogram.iloc[-1])
-            hist_prev = float(histogram.iloc[-2])
-            if float(macd_line.iloc[-1]) > float(signal_line.iloc[-1]) and hist_now > hist_prev:
-                score += 10
-                signals.append({"type": "positive", "label": "오를 힘이 강해지는 중 💪", "desc": "주가가 위로 올라가려는 힘이 점점 세지고 있어요."})
-            elif float(macd_line.iloc[-1]) < float(signal_line.iloc[-1]) and hist_now < hist_prev:
-                score -= 10
-                signals.append({"type": "negative", "label": "내릴 힘이 강해지는 중 ⚠️", "desc": "주가가 아래로 내려가려는 힘이 점점 세지고 있어요."})
-
-        # ──────────────────────────────────────────────
-        # 4. 볼린저 밴드 (기존)
-        # ──────────────────────────────────────────────
-        if not bb_up.dropna().empty:
-            up_val, dn_val = float(bb_up.iloc[-1]), float(bb_dn.iloc[-1])
-            if cur <= dn_val * 1.02:
-                score += 10
-                signals.append({"type": "positive", "label": "바닥 근처 도달 🔻", "desc": "주가가 최근 범위에서 가장 낮은 쪽에 와 있어요. 반등할 수 있어요."})
-            elif cur >= up_val * 0.98:
-                score -= 10
-                signals.append({"type": "negative", "label": "천장 근처 도달 🔺", "desc": "주가가 최근 범위에서 가장 높은 쪽에 와 있어요. 내려갈 수 있어요."})
-
-        # ══════════════════════════════════════════════
-        # 5. 수박지표 연동: BB 스퀴즈 + 이평선 수렴도
-        # (Pine Script 수박지표의 핵심 로직을 Python으로 재현)
-        # ══════════════════════════════════════════════
-        bb_width_pct = (bb_up - bb_dn) / bb_mid * 100
-        bb_width_min_20 = bb_width_pct.rolling(20).min()
-        # 스퀴즈: 현재 밴드폭이 최근 20봉 최소폭의 1.3배 이내
-        is_squeeze = False
-        if not bb_width_pct.dropna().empty and not bb_width_min_20.dropna().empty:
-            is_squeeze = float(bb_width_pct.iloc[-1]) <= float(bb_width_min_20.iloc[-1]) * 1.3
-
-        # 이평선 수렴도: 5/20/60/224일 이평의 최대-최소 / 현재가 (%)
-        ma_convergence = None
-        if not sma5.dropna().empty and not sma224.dropna().empty:
-            ma_vals = [float(sma5.iloc[-1]), float(sma20.iloc[-1]),
-                       float(sma60.iloc[-1]), float(sma224.iloc[-1])]
-            ma_spread = max(ma_vals) - min(ma_vals)
-            ma_convergence = ma_spread / cur * 100
-
-        # 이격도 (20일 기준)
-        disparity_20 = (cur / float(sma20.iloc[-1])) * 100 - 100 if not sma20.dropna().empty else None
-
-        # 수박 신호 = 스퀴즈 + 수렴 + 이격도 근접
-        if is_squeeze and ma_convergence is not None and ma_convergence < 2.0:
-            if disparity_20 is not None and abs(disparity_20) < 3.0:
-                score += 10
-                label = "큰 움직임 준비 중 🍉"
-                desc = "주가가 좁은 범위에서 모이고 있어요. 곧 크게 오르거나 내릴 수 있어요."
-                # 224일선 위면 강한 수박
-                if not sma224.dropna().empty and cur > float(sma224.iloc[-1]):
-                    score += 5
-                    label = "큰 상승 준비 중 🍉💪"
-                    desc = "주가가 장기 평균 위에서 힘을 모으고 있어요. 크게 오를 가능성이 높아요."
-                signals.append({"type": "positive", "label": label, "desc": desc})
-        elif is_squeeze:
-            signals.append({"type": "neutral", "label": "주가가 쉬는 중 😴",
-                            "desc": "주가 변동이 줄어들고 있어요. 곧 움직임이 커질 수 있어요."})
-
-        # ══════════════════════════════════════════════
-        # 6. 계단지표 연동: ATR 기반 계단형 지지레벨 판단
-        # (Pine Script 계단지표의 핵심 로직을 Python으로 재현)
-        # ══════════════════════════════════════════════
-        high = pd.to_numeric(df["high"], errors="coerce")
-        low  = pd.to_numeric(df["low"], errors="coerce")
-        # ATR 계산 (14일)
-        tr = pd.concat([
-            high - low,
-            (high - close.shift(1)).abs(),
-            (low - close.shift(1)).abs(),
-        ], axis=1).max(axis=1)
-        atr14 = tr.rolling(14).mean()
-
-        staircase_signal = None
-        if not atr14.dropna().empty and len(close) >= 20:
-            atr_val = float(atr14.iloc[-1])
-            grid_size = atr_val * 0.5  # step_atr_mult 기본값 0.5
-            if grid_size > 0:
-                # 최근 20봉에서 계단 레벨 변화 추적
-                close_arr = close.tail(20).values
-                grids = np.floor(close_arr / grid_size) * grid_size
-                # 연속 동일 레벨 카운트
-                current_level = grids[-1]
-                count = 1
-                for i in range(len(grids) - 2, -1, -1):
-                    if abs(grids[i] - current_level) < grid_size * 0.001:
-                        count += 1
-                    else:
-                        break
-                prev_level = grids[0]  # 20봉 전 레벨
-
-                if count >= 3:  # step_confirm 기본값 3
-                    if current_level > prev_level + grid_size * 0.5:
-                        staircase_signal = "up"
-                    elif current_level < prev_level - grid_size * 0.5:
-                        staircase_signal = "down"
-
-        if staircase_signal == "up":
-            score += 5
-            signals.append({"type": "positive", "label": "한 계단씩 오르는 중 🪜",
-                            "desc": "주가가 한 단계씩 올라가고 있어요. 안정적인 상승 신호예요."})
-        elif staircase_signal == "down":
-            score -= 5
-            signals.append({"type": "negative", "label": "한 계단씩 내리는 중 🪜",
-                            "desc": "주가가 한 단계씩 내려가고 있어요. 조심하세요."})
-
-        # ══════════════════════════════════════════════
-        # 7. 목표가 / 손절가  (점수 연동)
-        # ══════════════════════════════════════════════
-        sell_short_price = None   # 단기 목표가
-        sell_long_price = None    # 장기 목표가
-        stop_loss_price = None    # 손절가
+        # ── 목표가 / 손절가 (점수 연동) ──
+        sell_short_price = None
+        sell_long_price = None
+        stop_loss_price = None
         sell_short_desc = None
         sell_long_desc = None
         stop_loss_desc = None
 
-        atr_val = float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02
-
         if final_score >= 60:
-            # ── 매수 유리 → 목표가 제시 ──
-            # 단기: 현재가 + ATR × (점수 비례 배수)
-            short_mult = 1.0 + (final_score - 60) / 40 * 1.0   # 1.0x ~ 2.0x
+            short_mult = 1.0 + (final_score - 60) / 40 * 1.0
             sell_short_price = int(cur + atr_val * short_mult)
             sell_short_desc = f"단기 목표 (ATR ×{short_mult:.1f} 상승 여력)"
 
-            # 장기: BB 상단 + α 또는 60일 최고가 활용
-            if not bb_up.dropna().empty and len(high) >= 60:
-                bb_top = float(bb_up.iloc[-1])
+            bb_up_val = internals.get("bb_upper")
+            if bb_up_val and len(high) >= 60:
                 highest_60 = float(high.tail(60).max())
-                long_mult = 1.5 + (final_score - 60) / 40 * 1.5  # 1.5x ~ 3.0x
-                sell_long_price = int(max(bb_top, highest_60, cur + atr_val * long_mult))
+                long_mult = 1.5 + (final_score - 60) / 40 * 1.5
+                sell_long_price = int(max(bb_up_val, highest_60, cur + atr_val * long_mult))
                 sell_long_desc = f"장기 목표 (주요 저항선 + ATR ×{long_mult:.1f})"
-            elif not bb_up.dropna().empty:
-                sell_long_price = int(float(bb_up.iloc[-1]) * 1.02)
-                sell_long_desc = "장기 목표 (BB 상단 +2%)"
 
-            # 손절가: 현재가 - ATR × 1.5 (리스크 관리)
             stop_loss_price = int(cur - atr_val * 1.5)
             stop_loss_desc = "손절 기준 (ATR ×1.5 하락 시)"
 
         elif final_score >= 40:
-            # ── 관망 → 보수적 목표 + 손절가 ──
             sell_short_price = int(cur + atr_val * 0.8)
             sell_short_desc = "소폭 반등 시 매도 고려"
-
             stop_loss_price = int(cur - atr_val * 1.0)
             stop_loss_desc = "손절 기준 (ATR ×1.0 하락 시)"
 
         else:
-            # ── 매수 위험 → 손절가만 제시 (목표가 없음) ──
             stop_loss_price = int(cur - atr_val * 0.8)
             stop_loss_desc = "보유 중이라면 이 가격 아래로 내려가면 매도 고려"
 
-        # ──────────────────────────────────────────────
-        # 최종 점수 및 전망
-        # ──────────────────────────────────────────────
-        final_score = max(0, min(100, score))
-
+        # ── 전망 ──
         if final_score >= 70:
             outlook_short, outlook_mid = "오를 가능성 높음 👍", "당분간 좋아 보여요"
             summary = "여러 지표가 '사도 괜찮다'고 말하고 있어요."
@@ -827,26 +918,22 @@ async def predict_stock(
             outlook_short, outlook_mid = "내릴 수 있어요 ⚠️", "조심해야 할 시기"
             summary = "내려갈 신호가 더 많아요. 신중하게 판단하세요."
 
-        # 예측 캔들 생성 (미래 n 영업일)
-        last_date = str(df["time"].iloc[-1])[:10]  # "YYYY-MM-DD" 형태만 취함
-        atr_for_pred = float(atr14.iloc[-1]) if not atr14.dropna().empty else cur * 0.02
-        sma20_last = float(sma20.iloc[-1]) if not sma20.dropna().empty else None
-        bb_up_last = float(bb_up.iloc[-1]) if not bb_up.dropna().empty else None
-        bb_dn_last = float(bb_dn.iloc[-1]) if not bb_dn.dropna().empty else None
+        # ── 예측 캔들 생성 ──
+        last_date = str(df["time"].iloc[-1])[:10]
         predicted_candles = _generate_predicted_candles(
             last_date=last_date,
             last_close=cur,
-            atr_val=atr_for_pred,
+            atr_val=atr_val,
             prediction_score=final_score,
-            sma20_val=sma20_last,
-            bb_upper=bb_up_last,
-            bb_lower=bb_dn_last,
+            sma20_val=internals.get("sma20"),
+            bb_upper=internals.get("bb_upper"),
+            bb_lower=internals.get("bb_lower"),
             is_squeeze=is_squeeze,
             staircase_signal=staircase_signal,
             n_days=n_days,
         )
 
-        result = {
+        return {
             "ticker": ticker,
             "stock_name": stock_name,
             "current_price": int(cur),
@@ -865,7 +952,6 @@ async def predict_stock(
             },
             "predicted_candles": predicted_candles,
         }
-        return result
 
     except asyncio.TimeoutError:
         logger.warning("예측 데이터 조회 타임아웃: %s", ticker_or_name)
