@@ -290,7 +290,7 @@ def _generate_predicted_candles(
 
     candles = []
     prev_close = last_close
-    d = date.fromisoformat(last_date)
+    d = date.fromisoformat(last_date[:10])
 
     for i in range(n_days):
         d += timedelta(days=1)
