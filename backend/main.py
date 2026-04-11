@@ -252,28 +252,112 @@ def _unified_score(
     atr14 = tr.rolling(14).mean()
 
     # ══════════════════════════════════════════════
-    # 1. 이평선 배열 (±12)
+    # 1. 이평선 배열 + Cup 패턴 + 골든크로스 (±15)
+    #    - 정배열: 상승 확인 (+6~8)  ← 이미 오른 상태이므로 과도한 점수 X
+    #    - 역배열 + 바닥 반등: 매수 기회! (+10~15)
+    #    - 골든크로스 직전/직후: 전환점 (+8~12)
+    #    - 완전 역배열 하락 중: 위험 (-8~-12)
     # ══════════════════════════════════════════════
+    has_cup_pattern = False
+    has_golden_cross = False
+
     if not sma120.dropna().empty and not sma20.dropna().empty and not sma60.dropna().empty:
         s5  = float(sma5.iloc[-1]) if not sma5.dropna().empty else cur
         s20 = float(sma20.iloc[-1])
         s60 = float(sma60.iloc[-1])
         s120 = float(sma120.iloc[-1])
 
-        if cur > s5 > s20 > s60 > s120:
+        # ── Cup(그릇) 패턴 감지 ──
+        # 최근 60일에서 U자형 반등: 바닥 찍고 현재가가 회복 중
+        if len(close) >= 60:
+            recent_60 = close.tail(60).values
+            trough_idx = int(np.argmin(recent_60))
+            trough_price = float(recent_60[trough_idx])
+
+            # 바닥이 중간(10~50일 전)에 있고, 양쪽이 높은 U자형
+            if 10 <= trough_idx <= 50 and trough_price > 0:
+                left_high = float(np.max(recent_60[:trough_idx])) if trough_idx > 0 else cur
+                right_now = cur
+                decline_depth = (left_high - trough_price) / left_high  # 하락 깊이
+                recovery_ratio = (right_now - trough_price) / (left_high - trough_price) if left_high > trough_price else 0
+
+                # 하락 5% 이상 + 50% 이상 회복 = Cup 패턴
+                if decline_depth >= 0.05 and recovery_ratio >= 0.5:
+                    has_cup_pattern = True
+
+        # ── 골든크로스 감지: SMA20이 SMA60을 아래→위로 돌파 ──
+        if len(sma20.dropna()) >= 5 and len(sma60.dropna()) >= 5:
+            sma20_recent = sma20.dropna().tail(5).values
+            sma60_recent = sma60.dropna().tail(5).values
+            min_len = min(len(sma20_recent), len(sma60_recent))
+            if min_len >= 5:
+                sma20_r = sma20_recent[-min_len:]
+                sma60_r = sma60_recent[-min_len:]
+                # 5일 전에는 SMA20 < SMA60 → 현재 SMA20 >= SMA60
+                if sma20_r[0] < sma60_r[0] and sma20_r[-1] >= sma60_r[-1]:
+                    has_golden_cross = True
+
+        # ── SMA20 방향성: 5일 전 vs 현재 ──
+        sma20_rising = False
+        sma20_falling = False
+        if len(sma20.dropna()) >= 5:
+            sma20_5ago = float(sma20.dropna().iloc[-5])
+            sma20_rising = s20 > sma20_5ago * 1.001  # 0.1% 이상 상승
+            sma20_falling = s20 < sma20_5ago * 0.999
+
+        # ── 점수 부여 (상황별) ──
+
+        # Case A: 역배열 + Cup 패턴 (바닥 반등) — 최고 점수!
+        if has_cup_pattern and cur < s120 and cur > s5 > s20:
+            score += 15
+            signals.append({"type": "positive", "label": "바닥 반등 패턴 (Cup) 🏆",
+                            "desc": "주가가 그릇 모양으로 바닥을 찍고 올라오고 있어요. 강한 매수 신호!"})
+
+        # Case B: 역배열이지만 골든크로스 발생 — 전환점
+        elif has_golden_cross and s20 <= s60:
             score += 12
-            signals.append({"type": "positive", "label": "주가 흐름 좋음 📈",
-                            "desc": "최근 주가가 꾸준히 오르고 있어요."})
-        elif cur > s20 > s60:
+            signals.append({"type": "positive", "label": "반등 전환 신호 (골든크로스) ✨",
+                            "desc": "단기 평균이 중기 평균을 올라섰어요. 하락→상승 전환 시작!"})
+
+        # Case C: 역배열이지만 단기선 반등 중 (SMA5 > SMA20, SMA20 상승 전환)
+        elif cur > s5 > s20 and sma20_rising and (s60 > s20 or s120 > s20):
+            score += 10
+            signals.append({"type": "positive", "label": "바닥에서 올라오는 중 🌱",
+                            "desc": "장기적으로는 아직 역배열이지만, 단기 흐름이 상승으로 바뀌고 있어요."})
+
+        # Case D: Cup 패턴 + 이미 장기선 위로 회복
+        elif has_cup_pattern and cur > s120:
+            score += 10
+            signals.append({"type": "positive", "label": "바닥 반등 후 회복 완료 🏆",
+                            "desc": "그릇 모양 반등 후 장기 평균 위로 올라왔어요."})
+
+        # Case E: 완전 정배열 — 좋지만 이미 많이 오른 상태
+        elif cur > s5 > s20 > s60 > s120:
             score += 6
-            signals.append({"type": "positive", "label": "주가 흐름 괜찮음 📈",
-                            "desc": "중단기 흐름이 상승 중이에요."})
-        elif cur < s5 < s20 < s60 < s120:
+            signals.append({"type": "positive", "label": "상승 추세 유지 중 📈",
+                            "desc": "꾸준히 오르고 있지만, 이미 많이 올라온 상태예요."})
+
+        # Case F: 부분 정배열 (cur > s20 > s60, s120은 아직 위)
+        elif cur > s20 > s60:
+            score += 4
+            signals.append({"type": "positive", "label": "중단기 흐름 괜찮음",
+                            "desc": "중단기적으로 상승 중이에요."})
+
+        # Case G: 완전 역배열 + 하락 가속 (SMA20도 내려가는 중)
+        elif cur < s5 < s20 < s60 < s120 and sma20_falling:
             score -= 12
-            signals.append({"type": "negative", "label": "주가 흐름 안 좋음 📉",
-                            "desc": "주가가 계속 내려가고 있어요."})
+            signals.append({"type": "negative", "label": "하락 추세 강함 📉",
+                            "desc": "주가가 모든 평균선 아래에서 계속 내려가고 있어요."})
+
+        # Case H: 역배열이지만 하락 둔화 (SMA20 기울기 평평)
+        elif cur < s20 < s60 and not sma20_falling:
+            score -= 4
+            signals.append({"type": "negative", "label": "하락 중이지만 둔화 🐌",
+                            "desc": "아직 내려가는 중이지만, 속도가 느려지고 있어요."})
+
+        # Case I: 부분 역배열
         elif cur < s20 < s60:
-            score -= 6
+            score -= 8
             signals.append({"type": "negative", "label": "주가 흐름 약함 📉",
                             "desc": "중단기 흐름이 하락 중이에요."})
 
