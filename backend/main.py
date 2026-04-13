@@ -1560,7 +1560,10 @@ async def get_stock_data(
             df[col] = pd.to_numeric(df[col], errors="coerce")
         df = df.dropna(subset=["open", "high", "low", "close"])
         df = df[(df["close"] > 0) & (df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0)]
-        # 전일 종가로 forward-fill (장중 거래 없이 가격만 있는 날)
+        # 요청 기간 밖 데이터 필터링 — pykrx가 기간 밖 데이터를 반환하는 경우 방지
+        start_iso = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
+        end_iso = f"{end[:4]}-{end[4:6]}-{end[6:8]}"
+        df = df[(df["time"] >= start_iso) & (df["time"] <= end_iso)]
         df = df.sort_values("time").reset_index(drop=True)
         data = df[["time", "open", "high", "low", "close", "volume"]].to_dict(orient="records")
         close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)

@@ -25,6 +25,7 @@ function App() {
   const toYmd = (d: Date) => d.toISOString().slice(0, 10)
 
   const [ticker, setTicker] = useState('005930')
+  const [resolvedTicker, setResolvedTicker] = useState('')  // 실제 종목코드 (loadMore용)
   const [endDate, setEndDate] = useState(() => toYmd(new Date()))
   const [startDate, setStartDate] = useState(
     () => toYmd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 180)),
@@ -158,6 +159,7 @@ function App() {
         end_date: endDate.trim(),
       })
       setCandles(result.data)
+      setResolvedTicker(result.ticker)  // 종목코드 저장 (loadMore용)
       setSupportLines(result.support_lines ?? [])
       setResistanceLines(result.resistance_lines ?? [])
       setStockName(result.stock_name ?? t)
@@ -180,6 +182,9 @@ function App() {
   async function loadMore() {
     if (isLoadingMore || !candles.length || !hasMoreHistoryRef.current) return
 
+    // resolvedTicker(종목코드)를 사용 — 이름으로 재검색 시 오류 방지
+    const tickerCode = resolvedTicker || ticker.trim()
+
     const earliest = candles[0].time
     const earliestDate = new Date(earliest)
     const newEnd = new Date(earliestDate.getTime() - 86400000)
@@ -188,17 +193,23 @@ function App() {
     setIsLoadingMore(true)
     try {
       const result = await fetchOhlcv({
-        ticker: ticker.trim(),
+        ticker: tickerCode,
         start_date: toYmd(newStart),
         end_date: toYmd(newEnd),
       })
       if (result.data.length === 0) {
         hasMoreHistoryRef.current = false
       } else {
-        setCandles((prev) => [...result.data, ...prev])
+        // 기존 데이터의 earliest보다 과거 데이터만 추가 (겹침/갭 방지)
+        const filtered = result.data.filter((c) => c.time < earliest)
+        if (filtered.length === 0) {
+          hasMoreHistoryRef.current = false
+        } else {
+          setCandles((prev) => [...filtered, ...prev])
+        }
       }
     } catch {
-      // 무시
+      hasMoreHistoryRef.current = false
     } finally {
       setIsLoadingMore(false)
     }
