@@ -1083,20 +1083,25 @@ def _generate_predicted_candles(
     n_days: int = 7,
 ) -> list[dict]:
     """
-    기술적 분석 기반 주가 예측 시뮬레이션 (v2).
+    기술적 분석 기반 주가 예측 시뮬레이션 (v3 — 몬테카를로 앙상블).
 
-    핵심 원리:
-    1. 모멘텀 연속성: 단기(7일)에서 강하게, 장기(30일)에서 약하게
-    2. 다중 평균 회귀: SMA20(단기) + SMA60(중기) + SMA120(장기)
-    3. 지지/저항 자석효과 + 돌파 후 눌림목 인식
-    4. 변동성 클러스터링: GARCH-like
-    5. 레짐 감지: 추세장(Hurst>0.55) vs 횡보장(Hurst<0.45)
-    6. score drift 장기 감쇠: 30일 예측에서 score 영향 0에 수렴
+    v2 → v3 핵심 변경:
+    1. 몬테카를로 앙상블: N_PATHS(50)개 경로 생성 → 중앙값으로 대표 캔들 도출
+    2. ADX 기반 추세 강도 측정 (Hurst + ADX 이중 확인)
+    3. 멀티타임프레임 모멘텀: 5d/10d/20d/60d 가중 혼합
+    4. 피보나치 레벨 자석 효과
+    5. 거래량 프로파일 기반 drift 보정
+    6. 캔들 패턴 초기 드리프트 가산
+    7. 적응형 GARCH(1,1): alpha/beta 레짐별 조정
+    8. 변동성 스마일: 하락 시 변동성 증가 (레버리지 효과)
     """
+    N_PATHS = 50  # 몬테카를로 시뮬레이션 경로 수
+
     close = pd.to_numeric(df["close"], errors="coerce")
     open_ = pd.to_numeric(df["open"], errors="coerce")
     high  = pd.to_numeric(df["high"], errors="coerce")
     low   = pd.to_numeric(df["low"], errors="coerce")
+    vol   = pd.to_numeric(df["volume"], errors="coerce")
 
     last_close = float(close.iloc[-1])
     last_date = str(df["time"].iloc[-1])[:10]
@@ -1107,13 +1112,40 @@ def _generate_predicted_candles(
     is_squeeze = internals.get("is_squeeze", False)
     has_breakout_pullback = internals.get("breakout_pullback", False)
 
-    # SMA60, SMA120 값 직접 계산 (다중 평균 회귀용)
+    # SMA 다중 계산
+    sma5_val = float(close.rolling(5).mean().iloc[-1]) if len(close) >= 5 else last_close
     sma60_series = close.rolling(60).mean()
     sma120_series = close.rolling(120).mean()
     sma60_val = float(sma60_series.iloc[-1]) if not sma60_series.dropna().empty else None
     sma120_val = float(sma120_series.iloc[-1]) if not sma120_series.dropna().empty else None
 
-    # ── 1. 레짐 감지: 간이 Hurst 지수 (R/S 분석) ──
+    # ══════════════════════════════════════════════════════════════════
+    # ❶ ADX 계산 — 추세 강도 측정 (14일)
+    # ══════════════════════════════════════════════════════════════════
+    adx_val = 25.0  # 기본값 (중립)
+    if len(close) >= 28:
+        tr_series = pd.concat([
+            high - low,
+            (high - close.shift(1)).abs(),
+            (low - close.shift(1)).abs(),
+        ], axis=1).max(axis=1)
+        plus_dm = high.diff()
+        minus_dm = -low.diff()
+        plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0.0)
+        minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0.0)
+        atr_14 = tr_series.rolling(14).mean()
+        plus_di = 100 * (plus_dm.rolling(14).mean() / atr_14)
+        minus_di = 100 * (minus_dm.rolling(14).mean() / atr_14)
+        dx = (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan) * 100
+        adx_series = dx.rolling(14).mean()
+        if not adx_series.dropna().empty:
+            adx_val = float(adx_series.iloc[-1])
+            if not np.isfinite(adx_val):
+                adx_val = 25.0
+
+    # ══════════════════════════════════════════════════════════════════
+    # ❷ Hurst 지수 (R/S) + ADX 종합 레짐 판단
+    # ══════════════════════════════════════════════════════════════════
     hurst = 0.5
     if len(close) >= 60:
         log_ret = np.log(close.tail(60).values[1:] / close.tail(60).values[:-1])
@@ -1133,18 +1165,46 @@ def _generate_predicted_candles(
                 hurst = float(np.log(avg_rs) / np.log(n_obs)) if n_obs > 1 else 0.5
                 hurst = max(0.2, min(0.8, hurst))
 
-    is_trending = hurst > 0.55
-    is_mean_reverting = hurst < 0.45
+    # ADX + Hurst 이중 확인으로 레짐 판단 정확도 향상
+    is_strong_trend = adx_val >= 30 and hurst > 0.50
+    is_trending = (adx_val >= 25 and hurst > 0.45) or hurst > 0.55
+    is_mean_reverting = (adx_val < 20 and hurst < 0.50) or hurst < 0.45
+    # 추세 방향 (+DI vs -DI)
+    trend_direction = 1.0  # 기본 상승
+    if len(close) >= 28:
+        plus_di_val = float(plus_di.iloc[-1]) if not plus_di.dropna().empty else 50
+        minus_di_val = float(minus_di.iloc[-1]) if not minus_di.dropna().empty else 50
+        if np.isfinite(plus_di_val) and np.isfinite(minus_di_val):
+            trend_direction = 1.0 if plus_di_val >= minus_di_val else -1.0
 
-    # ── 2. 최근 모멘텀 측정 ──
-    if len(close) >= 10:
-        ret_5d = (float(close.iloc[-1]) / float(close.iloc[-5]) - 1) if len(close) >= 5 else 0
-        ret_10d = (float(close.iloc[-1]) / float(close.iloc[-10]) - 1) if len(close) >= 10 else 0
+    # ══════════════════════════════════════════════════════════════════
+    # ❸ 멀티타임프레임 모멘텀 (5d/10d/20d/60d 가중)
+    # ══════════════════════════════════════════════════════════════════
+    def safe_ret(period):
+        if len(close) >= period + 1:
+            v0 = float(close.iloc[-(period + 1)])
+            return (last_close / v0 - 1) if v0 > 0 else 0
+        return 0
+
+    ret_5d = safe_ret(5)
+    ret_10d = safe_ret(10)
+    ret_20d = safe_ret(20)
+    ret_60d = safe_ret(60)
+
+    # n_days에 따라 단기/장기 모멘텀 가중치 조절
+    if n_days <= 10:
+        mom_weights = {"5d": 0.50, "10d": 0.30, "20d": 0.15, "60d": 0.05}
+    elif n_days <= 20:
+        mom_weights = {"5d": 0.25, "10d": 0.30, "20d": 0.30, "60d": 0.15}
     else:
-        ret_5d = 0
-        ret_10d = 0
+        mom_weights = {"5d": 0.10, "10d": 0.15, "20d": 0.30, "60d": 0.45}
 
-    # ── 3. 변동성 분석 ──
+    weighted_mom = (ret_5d * mom_weights["5d"] + ret_10d * mom_weights["10d"]
+                    + ret_20d * mom_weights["20d"] + ret_60d * mom_weights["60d"])
+
+    # ══════════════════════════════════════════════════════════════════
+    # ❹ 변동성 분석 (v2 유지 + 레버리지 효과 추가)
+    # ══════════════════════════════════════════════════════════════════
     base_sigma = atr_val / last_close
 
     hist_window = min(120, len(close) - 1)
@@ -1159,11 +1219,19 @@ def _generate_predicted_candles(
         annualized_vol = hist_vol * np.sqrt(252)
         max_daily_change = float(np.max(np.abs(hist_log_rets)))
         p95_change = float(np.percentile(np.abs(hist_log_rets), 95))
+        # 레버리지 효과: 하락 시 변동성 증가 비율
+        neg_rets = hist_log_rets[hist_log_rets < 0]
+        pos_rets = hist_log_rets[hist_log_rets > 0]
+        leverage_ratio = (float(np.std(neg_rets)) / float(np.std(pos_rets))
+                          if len(neg_rets) >= 5 and len(pos_rets) >= 5 and float(np.std(pos_rets)) > 0
+                          else 1.0)
+        leverage_ratio = max(0.8, min(1.5, leverage_ratio))
     else:
         hist_vol = base_sigma
         annualized_vol = base_sigma * np.sqrt(252)
         max_daily_change = base_sigma * 3
         p95_change = base_sigma * 2
+        leverage_ratio = 1.0
 
     is_extreme_vol = annualized_vol > 0.60 or max_daily_change > 0.10
     is_stable = annualized_vol < 0.20
@@ -1201,192 +1269,324 @@ def _generate_predicted_candles(
     else:
         vol_persistence = 1.0
 
-    # ── 4. 기대 수익률(drift) — n_days별 차별화 ──
-    # score_drift: 장기일수록 감쇠 (30일이면 1/3로 축소)
-    score_decay_factor = max(0.33, 1.0 - (n_days - 7) / 35)  # 7일=1.0, 30일=0.34
+    # ══════════════════════════════════════════════════════════════════
+    # ❺ 기대 수익률(drift) — v3: ADX+멀티TF+거래량+캔들패턴 종합
+    # ══════════════════════════════════════════════════════════════════
+
+    # score drift (v2와 동일 — 장기 감쇠)
+    score_decay_factor = max(0.33, 1.0 - (n_days - 7) / 35)
     score_drift = (prediction_score - 50) / 50 * 0.003 * score_decay_factor
 
-    # 모멘텀: 단기(7일)에서 강하게, 장기(30일)에서 약하게 + 평균회귀 전환
-    if n_days <= 10:
-        # 단기: 모멘텀 중심
-        if is_trending:
-            momentum_drift = ret_5d * 0.12
-        elif is_mean_reverting:
-            momentum_drift = -ret_5d * 0.08
-        else:
-            momentum_drift = ret_5d * 0.05
-    elif n_days <= 20:
-        # 중기: 모멘텀+평균회귀 혼합
-        if is_trending:
-            momentum_drift = ret_5d * 0.06
-        elif is_mean_reverting:
-            momentum_drift = -ret_5d * 0.10
-        else:
-            momentum_drift = ret_5d * 0.02
+    # 모멘텀 drift — 멀티타임프레임 + 레짐 반영
+    if is_strong_trend:
+        momentum_drift = weighted_mom * 0.15 * trend_direction
+    elif is_trending:
+        momentum_drift = weighted_mom * 0.08
+    elif is_mean_reverting:
+        momentum_drift = -weighted_mom * 0.10
     else:
-        # 장기: 평균회귀 중심, 모멘텀 거의 무시
-        if is_mean_reverting:
-            momentum_drift = -ret_5d * 0.12
-        else:
-            momentum_drift = -ret_5d * 0.02  # 장기는 기본적으로 회귀 성향
+        momentum_drift = weighted_mom * 0.03
 
-    daily_mu = score_drift + momentum_drift
+    # 장기 예측 시 모멘텀 감쇠
+    mom_decay = max(0.2, 1.0 - (n_days - 7) / 30)
+    momentum_drift *= mom_decay
 
+    # ── 거래량 프로파일 drift 보정 ──
+    vol_drift = 0.0
+    if len(vol) >= 20:
+        vol_ma20 = vol.rolling(20).mean()
+        if not vol_ma20.dropna().empty:
+            avg_vol20 = float(vol_ma20.iloc[-1])
+            if avg_vol20 > 0:
+                # 최근 5일 거래량 비율
+                recent_vol_ratio = float(vol.tail(5).mean()) / avg_vol20
+                # 거래량 증가 + 양봉 = 매수세 유입
+                recent_up = sum(1 for i in range(-5, 0) if float(close.iloc[i]) > float(open_.iloc[i]))
+                if recent_vol_ratio > 1.5 and recent_up >= 3:
+                    vol_drift = 0.002  # 강한 매수 거래량
+                elif recent_vol_ratio > 1.3 and recent_up >= 3:
+                    vol_drift = 0.001
+                elif recent_vol_ratio > 1.5 and recent_up <= 2:
+                    vol_drift = -0.001  # 거래량은 높지만 매도 우세
+                # OBV 방향성
+                if len(vol) >= 10:
+                    price_diff = close.diff()
+                    obv_sign = pd.Series(0.0, index=close.index)
+                    obv_sign[price_diff > 0] = 1.0
+                    obv_sign[price_diff < 0] = -1.0
+                    obv = (vol * obv_sign).cumsum()
+                    obv_10 = obv.tail(10).values
+                    if len(obv_10) >= 10:
+                        obv_slope = (obv_10[-1] - obv_10[0]) / max(1, abs(obv_10[0])) if obv_10[0] != 0 else 0
+                        vol_drift += np.sign(obv_slope) * min(0.001, abs(obv_slope) * 0.0001)
+
+    # ── 캔들 패턴 drift 보정 ──
+    pattern_drift = 0.0
+    if len(close) >= 3 and len(open_) >= 3:
+        c1_o, c1_c = float(open_.iloc[-2]), float(close.iloc[-2])
+        c2_o, c2_h, c2_l, c2_c = float(open_.iloc[-1]), float(high.iloc[-1]), float(low.iloc[-1]), float(close.iloc[-1])
+        body2 = abs(c2_c - c2_o)
+        lower_wick2 = min(c2_o, c2_c) - c2_l
+        upper_wick2 = c2_h - max(c2_o, c2_c)
+
+        # 망치형 → 초기 상승 편향
+        if c1_c < c1_o and lower_wick2 > body2 * 2 and upper_wick2 < body2 * 0.5:
+            pattern_drift = 0.002
+        # 상승장악형 → 강한 초기 상승
+        elif c1_c < c1_o and c2_c > c2_o and c2_c >= c1_o and body2 > abs(c1_c - c1_o) * 1.2:
+            pattern_drift = 0.003
+        # 하락장악형 → 초기 하락 편향
+        elif c1_c > c1_o and c2_c < c2_o and c2_c <= c1_o and body2 > abs(c1_c - c1_o) * 1.2:
+            pattern_drift = -0.003
+        # 도지(십자형) — 방향 불확실, 변동성 증가 신호
+        elif body2 < atr_val * 0.1 and (lower_wick2 + upper_wick2) > body2 * 4:
+            pattern_drift = 0.0  # 방향 중립이지만 변동성 팩터로 반영
+            vol_persistence = min(vol_persistence * 1.2, 2.0)
+
+    # 패턴 drift는 첫 3~5일에만 강하게 적용
+    pattern_decay_days = min(5, n_days)
+
+    daily_mu = score_drift + momentum_drift + vol_drift
     if is_extreme_vol:
         daily_mu = max(-0.0015, min(0.0015, daily_mu))
 
-    # ── 5. 지지/저항 레벨 맵 구축 ──
-    sr_levels: list[tuple[float, str]] = []
+    # ══════════════════════════════════════════════════════════════════
+    # ❻ 지지/저항 + 피보나치 레벨 맵 구축
+    # ══════════════════════════════════════════════════════════════════
+    sr_levels: list[tuple[float, str, float]] = []  # (price, type, strength)
     for s in support_lines:
         if s > 0:
-            sr_levels.append((s, "support"))
+            sr_levels.append((s, "support", 1.0))
     for r in resistance_lines:
         if r > 0:
-            sr_levels.append((r, "resistance"))
+            sr_levels.append((r, "resistance", 1.0))
     if bb_upper and bb_upper > 0:
-        sr_levels.append((bb_upper, "resistance"))
+        sr_levels.append((bb_upper, "resistance", 0.6))
     if bb_lower and bb_lower > 0:
-        sr_levels.append((bb_lower, "support"))
+        sr_levels.append((bb_lower, "support", 0.6))
     if box_range and box_range.get("is_box"):
-        bt, bb = box_range.get("top", 0), box_range.get("bottom", 0)
+        bt, bb_val = box_range.get("top", 0), box_range.get("bottom", 0)
         if bt > 0:
-            sr_levels.append((bt, "resistance"))
-        if bb > 0:
-            sr_levels.append((bb, "support"))
+            sr_levels.append((bt, "resistance", 0.8))
+        if bb_val > 0:
+            sr_levels.append((bb_val, "support", 0.8))
 
-    # ── 6. 캔들 생성 루프 ──
-    # 시드: 종가 + 날짜 해시 → 매일 다른 시나리오
+    # 피보나치 되돌림 레벨 추가
+    if len(high) >= 60 and len(low) >= 60:
+        high_60 = float(high.tail(60).max())
+        low_60 = float(low.tail(60).min())
+        fib_range = high_60 - low_60
+        if fib_range > 0:
+            fib_levels = {
+                0.236: low_60 + fib_range * 0.236,
+                0.382: low_60 + fib_range * 0.382,
+                0.500: low_60 + fib_range * 0.500,
+                0.618: low_60 + fib_range * 0.618,
+                0.786: low_60 + fib_range * 0.786,
+            }
+            for fib_pct, fib_price in fib_levels.items():
+                dist = abs(fib_price - last_close) / last_close
+                if dist < 0.15:  # 15% 이내만
+                    ftype = "support" if fib_price < last_close else "resistance"
+                    # 0.382, 0.618이 가장 강한 피보나치 레벨
+                    strength = 0.7 if fib_pct in (0.382, 0.618) else 0.4
+                    sr_levels.append((fib_price, ftype, strength))
+
+    # VWAP 근사 (20일 가중평균가격) — 기관 매매 기준점
+    if len(close) >= 20 and len(vol) >= 20:
+        recent_vol_20 = vol.tail(20).values.astype(float)
+        recent_close_20 = close.tail(20).values.astype(float)
+        total_vol = np.nansum(recent_vol_20)
+        if total_vol > 0:
+            vwap_20 = float(np.nansum(recent_close_20 * recent_vol_20) / total_vol)
+            if vwap_20 > 0:
+                vtype = "support" if vwap_20 < last_close else "resistance"
+                sr_levels.append((vwap_20, vtype, 0.5))
+
+    # ══════════════════════════════════════════════════════════════════
+    # ❼ GARCH(1,1) 파라미터 — 레짐별 적응
+    # ══════════════════════════════════════════════════════════════════
+    if is_strong_trend:
+        garch_alpha, garch_beta = 0.10, 0.85  # 추세장: 관성 강함
+    elif is_mean_reverting:
+        garch_alpha, garch_beta = 0.12, 0.80  # 횡보장: 충격 반응 더 큼
+    else:
+        garch_alpha, garch_beta = 0.08, 0.90  # 기본
+
+    # ══════════════════════════════════════════════════════════════════
+    # ❽ 몬테카를로 앙상블 — N_PATHS개 경로 생성
+    # ══════════════════════════════════════════════════════════════════
+
+    # 시드: 종가 + 날짜 해시 → 매일 다른 시나리오 (v2와 동일 결정론)
     date_hash = sum(ord(c) for c in last_date)
-    rng = np.random.default_rng(seed=(int(last_close * 100) + date_hash) % 2**31)
-    candles = []
-    prev_close = last_close
-    d = date.fromisoformat(last_date)
-    trend_streak = 0
-    running_sigma = base_sigma * vol_persistence
-    # 돌파 후 눌림목 상태 추적
-    breakout_mode = has_breakout_pullback
+    base_seed = (int(last_close * 100) + date_hash) % 2**31
 
-    for i in range(n_days):
+    # 영업일 캘린더 미리 계산
+    business_days: list[date] = []
+    d = date.fromisoformat(last_date)
+    while len(business_days) < n_days:
         d += timedelta(days=1)
         while d.weekday() >= 5:
             d += timedelta(days=1)
+        business_days.append(d)
 
-        progress = i / max(1, n_days - 1)
+    # 모든 경로 저장: [path_idx][day_idx] = (open, high, low, close)
+    all_paths = np.zeros((N_PATHS, n_days, 4))  # O, H, L, C
 
-        # ── 변동성 감쇠 ──
-        drift_decay = max(0.2, 1.0 - progress * 0.6)
-        sigma_growth = 1.0 + progress * 0.15
+    for path_idx in range(N_PATHS):
+        rng = np.random.default_rng(seed=(base_seed + path_idx * 7919) % 2**31)
+        prev_close_p = last_close
+        trend_streak = 0
+        running_sigma = base_sigma * vol_persistence
+        breakout_mode = has_breakout_pullback
 
-        if is_squeeze:
-            squeeze_phase = min(1.0, i / max(3, n_days * 0.25))
-            sigma_scale = 0.3 + squeeze_phase * 1.5
-        else:
-            sigma_scale = sigma_growth
+        for i in range(n_days):
+            progress = i / max(1, n_days - 1)
 
-        sigma_today = min(running_sigma * sigma_scale, daily_ret_cap * 0.8)
+            # ── 변동성 감쇠/성장 ──
+            drift_decay = max(0.2, 1.0 - progress * 0.6)
+            sigma_growth = 1.0 + progress * 0.15
 
-        # ── 지지/저항 자석 효과 (돌파 후 눌림목 인식 포함) ──
-        sr_pull = 0.0
-        for level, stype in sr_levels:
-            dist_pct = (level - prev_close) / prev_close
-            if abs(dist_pct) < 0.08:
-                if stype == "support" and dist_pct < 0:
-                    sr_pull += abs(dist_pct) * 0.15
-                elif stype == "resistance" and dist_pct > 0:
-                    # 돌파 후 눌림목 상태면 저항선 반발력을 크게 완화
-                    resist_strength = 0.04 if breakout_mode else 0.12
-                    sr_pull -= abs(dist_pct) * resist_strength
-                elif stype == "support" and 0 < dist_pct < 0.03:
-                    sr_pull -= dist_pct * 0.05
-                elif stype == "resistance" and -0.03 < dist_pct < 0:
-                    sr_pull += abs(dist_pct) * 0.05
+            if is_squeeze:
+                squeeze_phase = min(1.0, i / max(3, n_days * 0.25))
+                sigma_scale = 0.3 + squeeze_phase * 1.5
+            else:
+                sigma_scale = sigma_growth
 
-        # ── 다중 SMA 평균 회귀 (n_days별 가중치 차별) ──
-        mean_revert = 0.0
-        # SMA20: 항상 적용 (단기 회귀력)
-        if sma20_val and sma20_val > 0:
-            dist_sma20 = (prev_close - sma20_val) / sma20_val
-            if is_mean_reverting:
-                mean_revert += -dist_sma20 * 0.10
-            elif not is_trending:
-                mean_revert += -dist_sma20 * 0.05
-        # SMA60: 중기 이상(14일+)에서 적용
-        if n_days >= 14 and sma60_val and sma60_val > 0:
-            dist_sma60 = (prev_close - sma60_val) / sma60_val
-            weight_60 = 0.06 if is_mean_reverting else 0.03
-            mean_revert += -dist_sma60 * weight_60
-        # SMA120: 장기(21일+)에서 적용
-        if n_days >= 21 and sma120_val and sma120_val > 0:
-            dist_sma120 = (prev_close - sma120_val) / sma120_val
-            weight_120 = 0.04 if is_mean_reverting else 0.02
-            mean_revert += -dist_sma120 * weight_120
+            sigma_today = min(running_sigma * sigma_scale, daily_ret_cap * 0.8)
 
-        # ── 조정 패턴: 연속 후 반대 방향 ──
-        if abs(trend_streak) >= 3 and rng.random() < 0.55:
-            correction = -np.sign(trend_streak) * abs(daily_mu) * 0.4
-            effective_mu = correction
-            trend_streak = 0
-        else:
-            effective_mu = daily_mu * drift_decay + sr_pull + mean_revert
+            # ── 패턴 drift (초기 N일에만 적용) ──
+            pattern_factor = pattern_drift * max(0, 1.0 - i / pattern_decay_days) if i < pattern_decay_days else 0
 
-        # ── 수익률 생성 + 변화량 캡핑 ──
-        z = rng.normal(0, 1)
-        ret_close = effective_mu + sigma_today * z
-        ret_close = max(-daily_ret_cap, min(daily_ret_cap, ret_close))
+            # ── 지지/저항 + 피보나치 자석 효과 ──
+            sr_pull = 0.0
+            for level, stype, strength in sr_levels:
+                dist_pct = (level - prev_close_p) / prev_close_p
+                if abs(dist_pct) < 0.10:
+                    if stype == "support" and dist_pct < 0:
+                        sr_pull += abs(dist_pct) * 0.15 * strength
+                    elif stype == "resistance" and dist_pct > 0:
+                        resist_str = 0.04 if breakout_mode else 0.12
+                        sr_pull -= abs(dist_pct) * resist_str * strength
+                    elif stype == "support" and 0 < dist_pct < 0.03:
+                        sr_pull -= dist_pct * 0.05 * strength
+                    elif stype == "resistance" and -0.03 < dist_pct < 0:
+                        sr_pull += abs(dist_pct) * 0.05 * strength
 
-        projected = prev_close * (1 + ret_close)
-        upper_bound = last_close * (1 + max_total_deviation)
-        lower_bound = last_close * (1 - max_total_deviation)
-        if projected > upper_bound:
-            ret_close = (upper_bound / prev_close) - 1
-        elif projected < lower_bound:
-            ret_close = (lower_bound / prev_close) - 1
+            # ── 다중 SMA 평균 회귀 ──
+            mean_revert = 0.0
+            if sma20_val and sma20_val > 0:
+                dist_sma20 = (prev_close_p - sma20_val) / sma20_val
+                if is_mean_reverting:
+                    mean_revert += -dist_sma20 * 0.10
+                elif not is_trending:
+                    mean_revert += -dist_sma20 * 0.05
+            if n_days >= 14 and sma60_val and sma60_val > 0:
+                dist_sma60 = (prev_close_p - sma60_val) / sma60_val
+                weight_60 = 0.06 if is_mean_reverting else 0.03
+                mean_revert += -dist_sma60 * weight_60
+            if n_days >= 21 and sma120_val and sma120_val > 0:
+                dist_sma120 = (prev_close_p - sma120_val) / sma120_val
+                weight_120 = 0.04 if is_mean_reverting else 0.02
+                mean_revert += -dist_sma120 * weight_120
 
-        # GARCH 갱신
-        running_sigma = 0.92 * running_sigma + 0.08 * abs(ret_close)
-        running_sigma = min(running_sigma, base_sigma * 2.0)
+            # ── ADX 기반 추세 지속력 보정 ──
+            adx_boost = 0.0
+            if is_strong_trend and adx_val >= 30:
+                adx_strength = min(1.0, (adx_val - 25) / 25)  # 25→0, 50→1
+                adx_boost = trend_direction * 0.002 * adx_strength * drift_decay
 
-        if ret_close > 0:
-            trend_streak = max(1, trend_streak + 1)
-        else:
-            trend_streak = min(-1, trend_streak - 1)
+            # ── 조정 패턴 ──
+            if abs(trend_streak) >= 3 and rng.random() < 0.55:
+                correction = -np.sign(trend_streak) * abs(daily_mu) * 0.4
+                effective_mu = correction
+                trend_streak = 0
+            else:
+                effective_mu = (daily_mu * drift_decay + sr_pull + mean_revert
+                                + adx_boost + pattern_factor)
 
-        # 돌파 후 눌림목: 초반 5일 이후 해제
-        if breakout_mode and i >= 5:
-            breakout_mode = False
+            # ── 수익률 생성 (레버리지 효과 반영) ──
+            z = rng.normal(0, 1)
+            # 하락 방향 시 변동성 비대칭 증폭
+            if z < 0:
+                sigma_eff = sigma_today * leverage_ratio
+            else:
+                sigma_eff = sigma_today
 
-        # ── 캔들 형성 ──
-        c = prev_close * (1 + ret_close)
-        # 갭: 장기 예측일수록 확대 (한국 시장 뉴스 갭)
-        gap_scale = 0.15 + (n_days - 7) / 23 * 0.10  # 7일=0.15, 30일=0.25
-        gap_ret = rng.normal(0, 1) * sigma_today * gap_scale
-        gap_ret = max(-daily_ret_cap * 0.5, min(daily_ret_cap * 0.5, gap_ret))
-        o = prev_close * (1 + gap_ret)
+            ret_close = effective_mu + sigma_eff * z
+            ret_close = max(-daily_ret_cap, min(daily_ret_cap, ret_close))
 
-        body = abs(c - o)
-        min_body = max(atr_val * 0.15, last_close * 0.003) if is_stable else atr_val * 0.15
-        if body < min_body:
-            direction = 1.0 if c >= o else -1.0
-            c = o + direction * min_body
+            projected = prev_close_p * (1 + ret_close)
+            upper_bound = last_close * (1 + max_total_deviation)
+            lower_bound = last_close * (1 - max_total_deviation)
+            if projected > upper_bound:
+                ret_close = (upper_bound / prev_close_p) - 1
+            elif projected < lower_bound:
+                ret_close = (lower_bound / prev_close_p) - 1
 
-        body_top = max(o, c)
-        body_bot = min(o, c)
-        wick_scale = min(sigma_scale, 1.5)
-        upper_wick = rng.exponential(0.3) * atr_val * 0.15 * wick_scale
-        lower_wick = rng.exponential(0.3) * atr_val * 0.12 * wick_scale
-        h = body_top + upper_wick
-        lo = body_bot - lower_wick
-        h = min(h, last_close * (1 + max_total_deviation * 1.05))
-        lo = max(lo, last_close * (1 - max_total_deviation * 1.05), 1)
+            # GARCH(1,1) 갱신
+            running_sigma = garch_beta * running_sigma + garch_alpha * abs(ret_close)
+            running_sigma = min(running_sigma, base_sigma * 2.5)
+
+            if ret_close > 0:
+                trend_streak = max(1, trend_streak + 1)
+            else:
+                trend_streak = min(-1, trend_streak - 1)
+
+            if breakout_mode and i >= 5:
+                breakout_mode = False
+
+            # ── 캔들 형성 ──
+            c = prev_close_p * (1 + ret_close)
+            gap_scale = 0.15 + (n_days - 7) / 23 * 0.10
+            gap_ret = rng.normal(0, 1) * sigma_today * gap_scale
+            gap_ret = max(-daily_ret_cap * 0.5, min(daily_ret_cap * 0.5, gap_ret))
+            o = prev_close_p * (1 + gap_ret)
+
+            body = abs(c - o)
+            min_body = max(atr_val * 0.15, last_close * 0.003) if is_stable else atr_val * 0.15
+            if body < min_body:
+                direction = 1.0 if c >= o else -1.0
+                c = o + direction * min_body
+
+            body_top = max(o, c)
+            body_bot = min(o, c)
+            wick_scale = min(sigma_scale, 1.5)
+            upper_wick = rng.exponential(0.3) * atr_val * 0.15 * wick_scale
+            lower_wick = rng.exponential(0.3) * atr_val * 0.12 * wick_scale
+            h = body_top + upper_wick
+            lo = body_bot - lower_wick
+            h = min(h, last_close * (1 + max_total_deviation * 1.05))
+            lo = max(lo, last_close * (1 - max_total_deviation * 1.05), 1)
+
+            all_paths[path_idx, i] = [max(1, o), max(1, h), max(1, lo), max(1, c)]
+            prev_close_p = c
+
+    # ══════════════════════════════════════════════════════════════════
+    # ❾ 앙상블 집계: 중앙값으로 대표 캔들 도출
+    # ══════════════════════════════════════════════════════════════════
+    candles = []
+    for i in range(n_days):
+        day_data = all_paths[:, i, :]  # (N_PATHS, 4) = O, H, L, C
+
+        # 중앙값 (50번째 퍼센타일) — 극단 경로에 덜 민감
+        med_o = float(np.median(day_data[:, 0]))
+        med_h = float(np.percentile(day_data[:, 1], 60))  # 고가는 약간 상향
+        med_l = float(np.percentile(day_data[:, 2], 40))  # 저가는 약간 하향
+        med_c = float(np.median(day_data[:, 3]))
+
+        # OHLC 정합성 보장
+        final_h = max(med_o, med_c, med_h)
+        final_l = min(med_o, med_c, med_l)
+        final_l = max(1, final_l)
 
         candles.append({
-            "time": d.isoformat(),
-            "open": max(1, round(o)),
-            "high": max(1, round(h)),
-            "low": max(1, round(lo)),
-            "close": max(1, round(c)),
+            "time": business_days[i].isoformat(),
+            "open": max(1, round(med_o)),
+            "high": max(1, round(final_h)),
+            "low": max(1, round(final_l)),
+            "close": max(1, round(med_c)),
         })
-        prev_close = c
 
     return candles
 
@@ -1422,20 +1622,59 @@ def _detect_box_range(df: pd.DataFrame) -> dict:
 
 
 def _fetch_ohlcv_sync(start: str, end: str, ticker: str) -> pd.DataFrame:
-    """pykrx 동기 호출 래퍼 (ThreadPool에서 실행됨)"""
-    return stock.get_market_ohlcv(start, end, ticker)
+    """pykrx 동기 호출 래퍼 — 긴 기간은 3개월 단위로 분할 요청 후 합산.
+
+    pykrx(KRX API)는 긴 기간을 한 번에 요청하면 데이터가 누락되는 경우가 있음.
+    특히 연도 경계(2025→2026)에서 잘림 현상 빈번.
+    3개월(90일) 단위로 분할하여 요청하면 안정적으로 전체 데이터를 받을 수 있음.
+    """
+    start_d = date(int(start[:4]), int(start[4:6]), int(start[6:8]))
+    end_d = date(int(end[:4]), int(end[4:6]), int(end[6:8]))
+    total_days = (end_d - start_d).days
+
+    # 90일 이하면 분할 불필요
+    if total_days <= 90:
+        return stock.get_market_ohlcv(start, end, ticker)
+
+    # 3개월(90일) 단위로 분할 요청
+    chunks: list[pd.DataFrame] = []
+    chunk_start = start_d
+    while chunk_start <= end_d:
+        chunk_end = min(chunk_start + timedelta(days=89), end_d)
+        s = _yyyymmdd(chunk_start)
+        e = _yyyymmdd(chunk_end)
+        try:
+            chunk_df = stock.get_market_ohlcv(s, e, ticker)
+            if chunk_df is not None and not chunk_df.empty:
+                chunks.append(chunk_df)
+        except Exception as exc:
+            logger.warning("pykrx 분할 조회 실패 (%s~%s, %s): %s", s, e, ticker, exc)
+        chunk_start = chunk_end + timedelta(days=1)
+
+    if not chunks:
+        return pd.DataFrame()
+
+    combined = pd.concat(chunks)
+    # 날짜 중복 제거 (경계일이 양쪽에 포함될 수 있음)
+    combined = combined[~combined.index.duplicated(keep="first")]
+    return combined.sort_index()
 
 
 async def _fetch_ohlcv(start: str, end: str, ticker: str) -> pd.DataFrame:
-    """pykrx 호출에 타임아웃 적용"""
-    return await _run_with_timeout(_fetch_ohlcv_sync, start, end, ticker)
+    """pykrx 호출에 타임아웃 적용 (분할 조회 포함으로 타임아웃 여유 확보)"""
+    total_days = (date(int(end[:4]), int(end[4:6]), int(end[6:8]))
+                  - date(int(start[:4]), int(start[4:6]), int(start[6:8]))).days
+    # 긴 기간은 타임아웃을 비례 확장 (기본 30초 + 청크당 15초)
+    n_chunks = max(1, total_days // 90 + 1)
+    timeout = max(PYKRX_TIMEOUT_SEC, PYKRX_TIMEOUT_SEC + (n_chunks - 1) * 15)
+    return await _run_with_timeout(_fetch_ohlcv_sync, start, end, ticker, timeout=timeout)
 
 
 def _load_stock_for_score_sync(ticker: str, end_day: str) -> tuple[pd.DataFrame, list[float], list[float], int, dict]:
     """추천 루프에서 사용하는 동기 버전 (ThreadPool에서 호출)"""
     end_d = date.fromisoformat(f"{end_day[:4]}-{end_day[4:6]}-{end_day[6:8]}")
     start_d = end_d - timedelta(days=365)  # 365일: OBV·120일SMA·224일SMA에 충분한 데이터
-    raw = stock.get_market_ohlcv(_yyyymmdd(start_d), end_day, ticker)
+    raw = _fetch_ohlcv_sync(_yyyymmdd(start_d), end_day, ticker)
     if raw.empty:
         raise ValueError("no data")
     df = _standardize_ohlcv(raw)
