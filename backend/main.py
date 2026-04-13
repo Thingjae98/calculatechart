@@ -229,86 +229,153 @@ def _standardize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def _cluster_by_price(candidates: list[tuple[float, float]], max_lines: int, tolerance_pct: float) -> list[float]:
-    out: list[float] = []
-    for price, _prom in sorted(candidates, key=lambda x: x[1], reverse=True):
-        keep = True
-        for existing in out:
-            if existing != 0 and abs(price - existing) / existing <= tolerance_pct:
-                keep = False
-                break
-        if keep:
-            out.append(float(price))
-        if len(out) >= max_lines:
-            break
-    return out
-
-
-def _support_resistance(close_values: np.ndarray, max_lines: int = 3) -> tuple[list[float], list[float]]:
+def _support_resistance(
+    close_values: np.ndarray,
+    high_values: np.ndarray | None = None,
+    low_values: np.ndarray | None = None,
+    volume_values: np.ndarray | None = None,
+    max_lines: int = 1,
+) -> tuple[list[float], list[float]]:
     """
-    지지/저항선 탐지 (업그레이드).
-    - 다중 레벨 지원 (기본 3개)
-    - 최근 종가 ±40% 범위 내 유효 레벨만 반환
-    - prominence 가중 + 최근성 가중 (최근 레벨에 보너스)
+    지지/저항선 탐지 — 현재 주가에 가장 유의미한 레벨 1개씩만 반환.
+
+    전문가 기준 종합 점수:
+      1. 터치 횟수: 같은 가격대를 여러 번 터치할수록 강한 레벨 (40%)
+      2. 거래량 집중도: 해당 가격대에서 거래량이 많을수록 강함 (30%)
+      3. 최근성: 최근 형성된 레벨이 오래된 레벨보다 유의미 (20%)
+      4. 현재가 근접도: 현재가에 가까울수록 즉시 영향력 큼 (10%)
     """
     lookback = len(close_values)
-    if lookback < 5:
+    if lookback < 10:
         return [], []
 
-    recent = close_values
-    y_range = float(np.max(recent) - np.min(recent))
-    mean_val = float(np.mean(recent))
-    last_price = float(recent[-1])
+    last_price = float(close_values[-1])
 
-    # 동적 prominence/distance 스케일링
-    if lookback < 20:
-        prominence = max(y_range * 0.001, mean_val * 0.0002)
-        distance = 1
-    elif lookback < 60:
-        prominence = max(y_range * 0.02, mean_val * 0.003)
-        distance = max(3, lookback // 15)
-    else:
-        prominence = max(y_range * 0.025, mean_val * 0.004)
-        distance = max(5, lookback // 25)
+    # high/low 없으면 close 기반으로 대체
+    highs = high_values if high_values is not None else close_values
+    lows = low_values if low_values is not None else close_values
+    vols = volume_values if volume_values is not None else np.ones(lookback)
 
-    peaks_idx, peaks_props = find_peaks(recent, prominence=prominence, distance=distance)
-    trough_idx, trough_props = find_peaks(-recent, prominence=prominence, distance=distance)
-    peak_proms = peaks_props.get("prominences", np.ones(len(peaks_idx), dtype=float))
-    trough_proms = trough_props.get("prominences", np.ones(len(trough_idx), dtype=float))
+    # ── 1단계: 피봇 포인트 탐지 (다중 타임프레임) ──
+    # 단기(5봉) + 중기(10봉) + 장기(20봉) 피봇을 모두 수집
+    pivot_highs: list[tuple[int, float]] = []  # (index, price)
+    pivot_lows: list[tuple[int, float]] = []
 
-    # 최근성 가중치: 뒤쪽 인덱스일수록 높은 가중치
-    def _recency_weight(idx: int) -> float:
-        return 1.0 + (idx / max(1, lookback)) * 0.5
+    for window in [5, 10, 20]:
+        if lookback < window * 2 + 1:
+            continue
+        half = window
+        for i in range(half, lookback - half):
+            # 피봇 고점: 양쪽 window 내 최고
+            if highs[i] == np.max(highs[max(0, i - half):i + half + 1]):
+                pivot_highs.append((i, float(highs[i])))
+            # 피봇 저점: 양쪽 window 내 최저
+            if lows[i] == np.min(lows[max(0, i - half):i + half + 1]):
+                pivot_lows.append((i, float(lows[i])))
 
-    resistance_candidates = [
-        (float(recent[i]), float(p) * _recency_weight(i))
-        for i, p in zip(peaks_idx, peak_proms)
+    if not pivot_highs and not pivot_lows:
+        # 피봇 없으면 단순 최고/최저
+        return [float(np.min(lows))], [float(np.max(highs))]
+
+    # ── 2단계: 가격대 클러스터링 (ATR 기반 허용 오차) ──
+    price_range = float(np.max(highs) - np.min(lows))
+    tolerance = max(last_price * 0.015, price_range * 0.02)  # 1.5% or 레인지 2% 중 큰 값
+
+    def _cluster_pivots(pivots: list[tuple[int, float]]) -> list[dict]:
+        """피봇들을 가격대별로 클러스터링. 각 클러스터의 종합 점수를 계산."""
+        if not pivots:
+            return []
+        # 가격순 정렬
+        sorted_pivots = sorted(pivots, key=lambda x: x[1])
+        clusters: list[list[tuple[int, float]]] = []
+        current_cluster = [sorted_pivots[0]]
+
+        for idx_price in sorted_pivots[1:]:
+            if abs(idx_price[1] - current_cluster[-1][1]) <= tolerance:
+                current_cluster.append(idx_price)
+            else:
+                clusters.append(current_cluster)
+                current_cluster = [idx_price]
+        clusters.append(current_cluster)
+
+        scored: list[dict] = []
+        for cluster in clusters:
+            # 대표 가격: 거래량 가중 평균
+            indices = [c[0] for c in cluster]
+            prices = [c[1] for c in cluster]
+            cluster_vols = [float(vols[i]) if i < len(vols) else 1.0 for i in indices]
+            total_vol = sum(cluster_vols)
+            if total_vol > 0:
+                rep_price = sum(p * v for p, v in zip(prices, cluster_vols)) / total_vol
+            else:
+                rep_price = float(np.mean(prices))
+
+            # (a) 터치 횟수 점수 (40%): 2회 이상이면 강한 레벨
+            touch_count = len(cluster)
+            touch_score = min(1.0, touch_count / 4.0)  # 4회면 만점
+
+            # (b) 거래량 집중도 점수 (30%): 해당 가격대 평균 거래량 / 전체 평균 거래량
+            avg_vol_at_level = np.mean(cluster_vols) if cluster_vols else 0
+            global_avg_vol = float(np.mean(vols)) if len(vols) > 0 else 1.0
+            vol_score = min(1.0, avg_vol_at_level / max(1, global_avg_vol))
+
+            # (c) 최근성 점수 (20%): 가장 최근 터치가 최근일수록 높음
+            most_recent_idx = max(indices)
+            recency_score = most_recent_idx / max(1, lookback - 1)
+
+            # (d) 현재가 근접도 점수 (10%): 가까울수록 높음
+            dist_pct = abs(rep_price - last_price) / last_price
+            proximity_score = max(0, 1.0 - dist_pct / 0.15)  # 15% 이상이면 0점
+
+            total_score = (
+                touch_score * 0.40
+                + vol_score * 0.30
+                + recency_score * 0.20
+                + proximity_score * 0.10
+            )
+
+            scored.append({
+                "price": rep_price,
+                "score": total_score,
+                "touches": touch_count,
+                "most_recent": most_recent_idx,
+            })
+
+        return scored
+
+    resistance_clusters = _cluster_pivots(pivot_highs)
+    support_clusters = _cluster_pivots(pivot_lows)
+
+    # ── 3단계: 현재가 기준 유효 레벨만 필터링 + 최고 점수 1개 선택 ──
+    # 저항선: 현재가보다 위 (1% ~ 20% 범위)
+    valid_resistance = [
+        c for c in resistance_clusters
+        if c["price"] > last_price * 1.005 and c["price"] < last_price * 1.20
     ]
-    support_candidates = [
-        (float(recent[i]), float(p) * _recency_weight(i))
-        for i, p in zip(trough_idx, trough_proms)
+    # 지지선: 현재가보다 아래 (1% ~ 20% 범위)
+    valid_support = [
+        c for c in support_clusters
+        if c["price"] < last_price * 0.995 and c["price"] > last_price * 0.80
     ]
 
-    if not resistance_candidates and len(recent) > 0:
-        resistance_candidates = [(float(np.max(recent)), 0.0)]
-    if not support_candidates and len(recent) > 0:
-        support_candidates = [(float(np.min(recent)), 0.0)]
+    # 점수 높은 순으로 정렬 후 max_lines개 선택
+    valid_resistance.sort(key=lambda x: x["score"], reverse=True)
+    valid_support.sort(key=lambda x: x["score"], reverse=True)
 
-    # 클러스터링 (가까운 레벨 병합, 허용 오차 2%)
-    resistance = sorted(
-        _cluster_by_price(resistance_candidates, max_lines=max_lines * 2, tolerance_pct=0.02),
-        reverse=True,
-    )
-    support = sorted(
-        _cluster_by_price(support_candidates, max_lines=max_lines * 2, tolerance_pct=0.02),
-    )
+    resistance_out = [round(c["price"]) for c in valid_resistance[:max_lines]]
+    support_out = [round(c["price"]) for c in valid_support[:max_lines]]
 
-    # 최근 가격 ±40% 범위 내 유효 레벨만 필터링
-    valid_range = last_price * 0.40
-    resistance = [r for r in resistance if abs(r - last_price) <= valid_range and r > last_price * 0.98]
-    support = [s for s in support if abs(s - last_price) <= valid_range and s < last_price * 1.02]
+    # 하나도 없으면 fallback: 최근 20일 최고/최저
+    if not resistance_out and lookback >= 20:
+        recent_high = float(np.max(highs[-20:]))
+        if recent_high > last_price * 1.005:
+            resistance_out = [round(recent_high)]
+    if not support_out and lookback >= 20:
+        recent_low = float(np.min(lows[-20:]))
+        if recent_low < last_price * 0.995:
+            support_out = [round(recent_low)]
 
-    return support[:max_lines], resistance[:max_lines]
+    return support_out, resistance_out
 
 
 def _unified_score(
@@ -392,6 +459,56 @@ def _unified_score(
         bb_width_min_20 = bb_width_pct.rolling(20).min()
         if not bb_width_pct.dropna().empty and not bb_width_min_20.dropna().empty:
             is_squeeze = float(bb_width_pct.iloc[-1]) <= float(bb_width_min_20.iloc[-1]) * 1.3
+
+    # ════════════════════════════════════════════════════
+    # 수렴→돌파→눌림목 패턴 감지 (사전 계산)
+    # ════════════════════════════════════════════════════
+    breakout_pullback = False  # 돌파 후 건전한 눌림목 상태
+    breakout_fresh = False     # 돌파 직후 (아직 눌림목 전)
+
+    if len(close) >= 20 and not bb_up.dropna().empty:
+        bb_up_val = float(bb_up.iloc[-1])
+        bb_mid_val_bp = float(bb_mid.iloc[-1])
+        vol_ma20_bp = vol.rolling(20).mean()
+
+        # 최근 10일 내 돌파 이벤트 탐색:
+        # 종가가 BB 상단 또는 박스 상단을 거래량 동반으로 돌파한 날
+        breakout_day = -1
+        breakout_level = 0.0
+        for lookback_i in range(min(10, len(close) - 1), 0, -1):
+            idx = -lookback_i
+            c_val = float(close.iloc[idx])
+            v_val = float(vol.iloc[idx])
+            v_avg = float(vol_ma20_bp.iloc[idx]) if not vol_ma20_bp.dropna().empty and idx + len(vol_ma20_bp) > 0 else 0
+
+            # BB 상단 돌파 + 거래량 2배
+            bb_up_at = float(bb_up.iloc[idx]) if idx + len(bb_up) > 0 else bb_up_val
+            if c_val > bb_up_at and v_avg > 0 and v_val >= v_avg * 1.8:
+                breakout_day = lookback_i
+                breakout_level = bb_up_at
+                break
+
+            # 박스 상단 돌파 + 거래량 2배
+            if box_range and box_range.get("is_box"):
+                box_top = box_range.get("top", 0)
+                if box_top > 0 and c_val > box_top and v_avg > 0 and v_val >= v_avg * 1.8:
+                    breakout_day = lookback_i
+                    breakout_level = box_top
+                    break
+
+        if breakout_day > 0:
+            # 돌파 후 현재가가 돌파 레벨 위에 있고, 되돌림이 3% 이내
+            pullback_pct = (cur - breakout_level) / breakout_level if breakout_level > 0 else 0
+            # 되돌림 중 거래량 감소 확인
+            post_breakout_vol = vol.tail(breakout_day).values
+            vol_declining = True
+            if len(post_breakout_vol) >= 2:
+                vol_declining = float(np.mean(post_breakout_vol[-2:])) < float(np.mean(post_breakout_vol[:max(1, len(post_breakout_vol) // 2)])) * 1.3
+
+            if pullback_pct >= -0.01 and breakout_day <= 3:
+                breakout_fresh = True
+            elif -0.03 <= pullback_pct <= 0.05 and cur > breakout_level * 0.97 and vol_declining:
+                breakout_pullback = True
 
     # ════════════════════════════════════════════════════
     # 카테고리별 점수 + 반등 플래그
@@ -850,6 +967,16 @@ def _unified_score(
         signals.append({"type": "negative", "label": "한 계단씩 내리는 중 🪜",
                         "desc": "주가가 한 단계씩 내려가고 있어요."})
 
+    # ── 돌파 후 눌림목 (수렴→돌파→건전한 조정) ──
+    if breakout_pullback:
+        structure_pts += 7
+        signals.append({"type": "positive", "label": "돌파 후 눌림목 진입 🎯",
+                        "desc": "저항선을 돌파한 뒤 거래량이 줄며 건전하게 쉬고 있어요. 최적 매수 타이밍!"})
+    elif breakout_fresh:
+        structure_pts += 5
+        signals.append({"type": "positive", "label": "저항 돌파 직후 🚀",
+                        "desc": "거래량과 함께 저항선을 막 돌파했어요. 눌림목을 기다려보세요."})
+
     # ── 캔들 패턴 인식 (최근 3봉 분석) ──
     candle_pattern = None
     if len(close) >= 3 and len(open_) >= 3 and len(high) >= 3 and len(low) >= 3:
@@ -906,7 +1033,8 @@ def _unified_score(
 
     # ── 반등 시너지: 바닥 신호가 복수 동시 발생 시 보너스 ──
     reversal_flags = [has_cup_pattern, accumulation_detected, obv_divergence,
-                      squeeze_breakout, has_golden_cross, rsi_divergence]
+                      squeeze_breakout, has_golden_cross, rsi_divergence,
+                      breakout_pullback]
     reversal_count = sum(reversal_flags)
     synergy_bonus = 0
     if reversal_count >= 3:
@@ -939,6 +1067,7 @@ def _unified_score(
         "staircase_signal": staircase_signal,
         "accumulation": accumulation_detected,
         "obv_divergence": obv_divergence,
+        "breakout_pullback": breakout_pullback or breakout_fresh,
     }
 
     return final_score, signals, internals
@@ -954,14 +1083,15 @@ def _generate_predicted_candles(
     n_days: int = 7,
 ) -> list[dict]:
     """
-    기술적 분석 기반 주가 예측 시뮬레이션.
+    기술적 분석 기반 주가 예측 시뮬레이션 (v2).
 
     핵심 원리:
-    1. 모멘텀 연속성: 최근 N일 수익률 추세는 단기적으로 지속되는 경향
-    2. 평균 회귀: 이평선·BB 중심으로 회귀하려는 힘
-    3. 지지/저항 자석효과: 가까운 S/R에 끌려가다가 반발
-    4. 변동성 클러스터링: 최근 변동성이 높으면 앞으로도 높음 (GARCH-like)
-    5. 레짐 감지: 추세장(Hurst>0.55) vs 횡보장(Hurst<0.45)에 따라 모델 전환
+    1. 모멘텀 연속성: 단기(7일)에서 강하게, 장기(30일)에서 약하게
+    2. 다중 평균 회귀: SMA20(단기) + SMA60(중기) + SMA120(장기)
+    3. 지지/저항 자석효과 + 돌파 후 눌림목 인식
+    4. 변동성 클러스터링: GARCH-like
+    5. 레짐 감지: 추세장(Hurst>0.55) vs 횡보장(Hurst<0.45)
+    6. score drift 장기 감쇠: 30일 예측에서 score 영향 0에 수렴
     """
     close = pd.to_numeric(df["close"], errors="coerce")
     open_ = pd.to_numeric(df["open"], errors="coerce")
@@ -975,14 +1105,20 @@ def _generate_predicted_candles(
     bb_upper = internals.get("bb_upper")
     bb_lower = internals.get("bb_lower")
     is_squeeze = internals.get("is_squeeze", False)
+    has_breakout_pullback = internals.get("breakout_pullback", False)
+
+    # SMA60, SMA120 값 직접 계산 (다중 평균 회귀용)
+    sma60_series = close.rolling(60).mean()
+    sma120_series = close.rolling(120).mean()
+    sma60_val = float(sma60_series.iloc[-1]) if not sma60_series.dropna().empty else None
+    sma120_val = float(sma120_series.iloc[-1]) if not sma120_series.dropna().empty else None
 
     # ── 1. 레짐 감지: 간이 Hurst 지수 (R/S 분석) ──
-    hurst = 0.5  # 기본값: 랜덤 워크
+    hurst = 0.5
     if len(close) >= 60:
         log_ret = np.log(close.tail(60).values[1:] / close.tail(60).values[:-1])
         log_ret = log_ret[np.isfinite(log_ret)]
         if len(log_ret) >= 20:
-            # 간이 R/S: 절반으로 나눠서 비교
             half = len(log_ret) // 2
             rs_vals = []
             for chunk in [log_ret[:half], log_ret[half:]]:
@@ -1008,10 +1144,9 @@ def _generate_predicted_candles(
         ret_5d = 0
         ret_10d = 0
 
-    # ── 3. 변동성 분석 (drift/sigma 결정 전에 먼저 수행) ──
+    # ── 3. 변동성 분석 ──
     base_sigma = atr_val / last_close
 
-    # 과거 일일 변화율 분석 (최소 20일, 최대 120일)
     hist_window = min(120, len(close) - 1)
     if hist_window >= 20:
         hist_log_rets = np.diff(np.log(close.tail(hist_window + 1).values))
@@ -1019,7 +1154,6 @@ def _generate_predicted_candles(
     else:
         hist_log_rets = np.array([])
 
-    # 변동성 레짐 분류
     if len(hist_log_rets) >= 20:
         hist_vol = float(np.std(hist_log_rets))
         annualized_vol = hist_vol * np.sqrt(252)
@@ -1034,30 +1168,26 @@ def _generate_predicted_candles(
     is_extreme_vol = annualized_vol > 0.60 or max_daily_change > 0.10
     is_stable = annualized_vol < 0.20
 
-    # 극단적 종목: base_sigma를 중위값 수준으로 축소
     if is_extreme_vol:
         median_change = float(np.median(np.abs(hist_log_rets))) if len(hist_log_rets) >= 20 else base_sigma * 0.5
         base_sigma = min(base_sigma, max(median_change, p95_change * 0.5))
     elif is_stable:
         base_sigma = max(base_sigma, 0.005)
 
-    # 일일 수익률 하드캡 — n_days가 길수록 더 타이트하게
     if is_extreme_vol:
-        daily_ret_cap = min(0.03, p95_change * 1.0)  # 극단적: 3%
+        daily_ret_cap = min(0.03, p95_change * 1.0)
     elif n_days >= 21:
-        daily_ret_cap = min(0.04, p95_change * 1.5)  # 장기 예측: 4%
+        daily_ret_cap = min(0.04, p95_change * 1.5)
     else:
-        daily_ret_cap = min(0.06, p95_change * 2.0)  # 단기: 6%
+        daily_ret_cap = min(0.06, p95_change * 2.0)
 
-    # 누적 가격 이탈 한계 (시작가 대비 최대 ±N%)
     if is_extreme_vol:
-        max_total_deviation = 0.15  # 극단적: ±15%
+        max_total_deviation = 0.15
     elif n_days >= 21:
-        max_total_deviation = 0.25  # 장기: ±25%
+        max_total_deviation = 0.25
     else:
-        max_total_deviation = 0.35  # 단기: ±35%
+        max_total_deviation = 0.35
 
-    # 최근 변동성 기반 vol_persistence
     if len(close) >= 5:
         recent_rets = np.abs(np.diff(np.log(close.tail(6).values)))
         recent_rets = recent_rets[np.isfinite(recent_rets)]
@@ -1071,19 +1201,37 @@ def _generate_predicted_candles(
     else:
         vol_persistence = 1.0
 
-    # ── 4. 기대 수익률(drift) — 복합 산출 ──
-    score_drift = (prediction_score - 50) / 50 * 0.003  # ±0.3%/일 (이전 0.4%에서 축소)
+    # ── 4. 기대 수익률(drift) — n_days별 차별화 ──
+    # score_drift: 장기일수록 감쇠 (30일이면 1/3로 축소)
+    score_decay_factor = max(0.33, 1.0 - (n_days - 7) / 35)  # 7일=1.0, 30일=0.34
+    score_drift = (prediction_score - 50) / 50 * 0.003 * score_decay_factor
 
-    if is_trending:
-        momentum_drift = ret_5d * 0.10
-    elif is_mean_reverting:
-        momentum_drift = -ret_5d * 0.08
+    # 모멘텀: 단기(7일)에서 강하게, 장기(30일)에서 약하게 + 평균회귀 전환
+    if n_days <= 10:
+        # 단기: 모멘텀 중심
+        if is_trending:
+            momentum_drift = ret_5d * 0.12
+        elif is_mean_reverting:
+            momentum_drift = -ret_5d * 0.08
+        else:
+            momentum_drift = ret_5d * 0.05
+    elif n_days <= 20:
+        # 중기: 모멘텀+평균회귀 혼합
+        if is_trending:
+            momentum_drift = ret_5d * 0.06
+        elif is_mean_reverting:
+            momentum_drift = -ret_5d * 0.10
+        else:
+            momentum_drift = ret_5d * 0.02
     else:
-        momentum_drift = ret_5d * 0.03
+        # 장기: 평균회귀 중심, 모멘텀 거의 무시
+        if is_mean_reverting:
+            momentum_drift = -ret_5d * 0.12
+        else:
+            momentum_drift = -ret_5d * 0.02  # 장기는 기본적으로 회귀 성향
 
     daily_mu = score_drift + momentum_drift
 
-    # 극단적 변동 종목: drift 보수적 제한
     if is_extreme_vol:
         daily_mu = max(-0.0015, min(0.0015, daily_mu))
 
@@ -1107,12 +1255,16 @@ def _generate_predicted_candles(
             sr_levels.append((bb, "support"))
 
     # ── 6. 캔들 생성 루프 ──
-    rng = np.random.default_rng(seed=int(last_close * 100) % 2**31)
+    # 시드: 종가 + 날짜 해시 → 매일 다른 시나리오
+    date_hash = sum(ord(c) for c in last_date)
+    rng = np.random.default_rng(seed=(int(last_close * 100) + date_hash) % 2**31)
     candles = []
     prev_close = last_close
     d = date.fromisoformat(last_date)
     trend_streak = 0
     running_sigma = base_sigma * vol_persistence
+    # 돌파 후 눌림목 상태 추적
+    breakout_mode = has_breakout_pullback
 
     for i in range(n_days):
         d += timedelta(days=1)
@@ -1121,45 +1273,53 @@ def _generate_predicted_candles(
 
         progress = i / max(1, n_days - 1)
 
-        # ── 변동성 감쇠: 장기 예측일수록 보수적 ──
+        # ── 변동성 감쇠 ──
         drift_decay = max(0.2, 1.0 - progress * 0.6)
-        sigma_growth = 1.0 + progress * 0.15  # 변동성 성장 제한 (이전 0.3 → 0.15)
+        sigma_growth = 1.0 + progress * 0.15
 
-        # 스퀴즈 상태: 초반엔 좁다가 확 터짐
         if is_squeeze:
             squeeze_phase = min(1.0, i / max(3, n_days * 0.25))
             sigma_scale = 0.3 + squeeze_phase * 1.5
         else:
             sigma_scale = sigma_growth
 
-        sigma_today = min(running_sigma * sigma_scale, daily_ret_cap * 0.8)  # sigma도 캡 이내로
+        sigma_today = min(running_sigma * sigma_scale, daily_ret_cap * 0.8)
 
-        # ── 지지/저항 자석 효과 ──
+        # ── 지지/저항 자석 효과 (돌파 후 눌림목 인식 포함) ──
         sr_pull = 0.0
         for level, stype in sr_levels:
             dist_pct = (level - prev_close) / prev_close
-            if abs(dist_pct) < 0.08:  # 8% 이내
+            if abs(dist_pct) < 0.08:
                 if stype == "support" and dist_pct < 0:
-                    # 지지선 아래로 가면 반발력 (양의 힘)
                     sr_pull += abs(dist_pct) * 0.15
                 elif stype == "resistance" and dist_pct > 0:
-                    # 저항선 위로 가면 반발력 (음의 힘)
-                    sr_pull -= abs(dist_pct) * 0.12
+                    # 돌파 후 눌림목 상태면 저항선 반발력을 크게 완화
+                    resist_strength = 0.04 if breakout_mode else 0.12
+                    sr_pull -= abs(dist_pct) * resist_strength
                 elif stype == "support" and 0 < dist_pct < 0.03:
-                    # 지지선 바로 위 = 약한 끌어당김
                     sr_pull -= dist_pct * 0.05
                 elif stype == "resistance" and -0.03 < dist_pct < 0:
-                    # 저항선 바로 아래 = 약한 끌어당김
                     sr_pull += abs(dist_pct) * 0.05
 
-        # ── SMA20 평균 회귀 ──
+        # ── 다중 SMA 평균 회귀 (n_days별 가중치 차별) ──
         mean_revert = 0.0
+        # SMA20: 항상 적용 (단기 회귀력)
         if sma20_val and sma20_val > 0:
-            dist_sma = (prev_close - sma20_val) / sma20_val
+            dist_sma20 = (prev_close - sma20_val) / sma20_val
             if is_mean_reverting:
-                mean_revert = -dist_sma * 0.12
+                mean_revert += -dist_sma20 * 0.10
             elif not is_trending:
-                mean_revert = -dist_sma * 0.06
+                mean_revert += -dist_sma20 * 0.05
+        # SMA60: 중기 이상(14일+)에서 적용
+        if n_days >= 14 and sma60_val and sma60_val > 0:
+            dist_sma60 = (prev_close - sma60_val) / sma60_val
+            weight_60 = 0.06 if is_mean_reverting else 0.03
+            mean_revert += -dist_sma60 * weight_60
+        # SMA120: 장기(21일+)에서 적용
+        if n_days >= 21 and sma120_val and sma120_val > 0:
+            dist_sma120 = (prev_close - sma120_val) / sma120_val
+            weight_120 = 0.04 if is_mean_reverting else 0.02
+            mean_revert += -dist_sma120 * weight_120
 
         # ── 조정 패턴: 연속 후 반대 방향 ──
         if abs(trend_streak) >= 3 and rng.random() < 0.55:
@@ -1172,11 +1332,8 @@ def _generate_predicted_candles(
         # ── 수익률 생성 + 변화량 캡핑 ──
         z = rng.normal(0, 1)
         ret_close = effective_mu + sigma_today * z
-
-        # 일일 변화량 하드캡
         ret_close = max(-daily_ret_cap, min(daily_ret_cap, ret_close))
 
-        # 누적 가격 이탈 캡: 시작가 대비 max_total_deviation 초과 방지
         projected = prev_close * (1 + ret_close)
         upper_bound = last_close * (1 + max_total_deviation)
         lower_bound = last_close * (1 - max_total_deviation)
@@ -1185,25 +1342,28 @@ def _generate_predicted_candles(
         elif projected < lower_bound:
             ret_close = (lower_bound / prev_close) - 1
 
-        # GARCH 갱신 (기존 0.85/0.15 → 0.92/0.08로 안정화)
+        # GARCH 갱신
         running_sigma = 0.92 * running_sigma + 0.08 * abs(ret_close)
-        # running_sigma 자체도 base_sigma의 2배를 넘지 않도록
         running_sigma = min(running_sigma, base_sigma * 2.0)
 
-        # 추세 방향 추적
         if ret_close > 0:
             trend_streak = max(1, trend_streak + 1)
         else:
             trend_streak = min(-1, trend_streak - 1)
 
+        # 돌파 후 눌림목: 초반 5일 이후 해제
+        if breakout_mode and i >= 5:
+            breakout_mode = False
+
         # ── 캔들 형성 ──
         c = prev_close * (1 + ret_close)
-        gap_ret = rng.normal(0, 1) * sigma_today * 0.15  # 갭 축소 (0.25 → 0.15)
+        # 갭: 장기 예측일수록 확대 (한국 시장 뉴스 갭)
+        gap_scale = 0.15 + (n_days - 7) / 23 * 0.10  # 7일=0.15, 30일=0.25
+        gap_ret = rng.normal(0, 1) * sigma_today * gap_scale
         gap_ret = max(-daily_ret_cap * 0.5, min(daily_ret_cap * 0.5, gap_ret))
         o = prev_close * (1 + gap_ret)
 
         body = abs(c - o)
-        # 안정적 종목: 최소 캔들 크기를 종가의 0.3%로 보장
         min_body = max(atr_val * 0.15, last_close * 0.003) if is_stable else atr_val * 0.15
         if body < min_body:
             direction = 1.0 if c >= o else -1.0
@@ -1211,12 +1371,11 @@ def _generate_predicted_candles(
 
         body_top = max(o, c)
         body_bot = min(o, c)
-        wick_scale = min(sigma_scale, 1.5)  # 위크 스케일도 제한
+        wick_scale = min(sigma_scale, 1.5)
         upper_wick = rng.exponential(0.3) * atr_val * 0.15 * wick_scale
         lower_wick = rng.exponential(0.3) * atr_val * 0.12 * wick_scale
         h = body_top + upper_wick
         lo = body_bot - lower_wick
-        # 위크가 누적 캡을 넘지 않도록
         h = min(h, last_close * (1 + max_total_deviation * 1.05))
         lo = max(lo, last_close * (1 - max_total_deviation * 1.05), 1)
 
@@ -1285,7 +1444,10 @@ def _load_stock_for_score_sync(ticker: str, end_day: str) -> tuple[pd.DataFrame,
     if len(vol_series) >= 20 and float(vol_series.tail(20).mean()) < 10000:
         raise ValueError("low volume — skip")
     close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
-    support, resistance = _support_resistance(close_values, max_lines=3)
+    high_values = pd.to_numeric(df["high"], errors="coerce").dropna().to_numpy(dtype=float)
+    low_values = pd.to_numeric(df["low"], errors="coerce").dropna().to_numpy(dtype=float)
+    vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
+    support, resistance = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
     box = _detect_box_range(df)
     score, _signals, _internals = _unified_score(df, support, resistance, box)
     return df, support, resistance, score, {}
@@ -1402,7 +1564,10 @@ async def get_stock_data(
         df = df.sort_values("time").reset_index(drop=True)
         data = df[["time", "open", "high", "low", "close", "volume"]].to_dict(orient="records")
         close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
-        support_lines, resistance_lines = _support_resistance(close_values, max_lines=3)
+        high_values = pd.to_numeric(df["high"], errors="coerce").dropna().to_numpy(dtype=float)
+        low_values = pd.to_numeric(df["low"], errors="coerce").dropna().to_numpy(dtype=float)
+        vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
+        support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
         box_range = _detect_box_range(df)
         score, _signals, _internals = _unified_score(df, support_lines, resistance_lines, box_range)
         score_breakdown = {}
@@ -1556,7 +1721,10 @@ async def predict_stock(
 
         # ── 통합 점수 계산 (기본 점수와 동일한 함수) ──
         close_values = close.dropna().to_numpy(dtype=float)
-        support_lines, resistance_lines = _support_resistance(close_values, max_lines=3)
+        high_values = pd.to_numeric(df["high"], errors="coerce").dropna().to_numpy(dtype=float)
+        low_values = pd.to_numeric(df["low"], errors="coerce").dropna().to_numpy(dtype=float)
+        vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
+        support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
         box_range = _detect_box_range(df)
         final_score, signals, internals = _unified_score(df, support_lines, resistance_lines, box_range)
 
