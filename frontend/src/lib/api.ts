@@ -69,6 +69,33 @@ export interface PredictionResult {
   error?: string
 }
 
+export type SearchResult = {
+  ticker: string
+  name: string
+}
+
+export type SearchResponse = {
+  results: SearchResult[]
+  error?: string
+}
+
+/** 종목 자동완성 검색 */
+export async function searchStocks(query: string): Promise<SearchResponse> {
+  if (!query.trim()) return { results: [] }
+  try {
+    const res = await fetch(buildApiUrl(`/api/search?q=${encodeURIComponent(query.trim())}`))
+    if (!res.ok) return { results: [], error: `서버 응답 오류 (${res.status})` }
+    const body = await res.json()
+    const results = Array.isArray(body?.results) ? body.results : []
+    return { results }
+  } catch (e) {
+    const msg = e instanceof TypeError && String(e).includes('fetch')
+      ? '서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인하세요.'
+      : '검색 중 오류가 발생했습니다.'
+    return { results: [], error: msg }
+  }
+}
+
 /** Render 무료 플랜 cold start 해결용: 서버를 미리 깨움 */
 export async function pingServer(): Promise<boolean> {
   try {
@@ -87,7 +114,12 @@ export async function fetchPrediction(
 ): Promise<PredictionResult> {
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate, n_days: String(nDays) })
   const url = buildApiUrl(`/api/stock/${encodeURIComponent(ticker)}/predict?${params}`)
-  const res = await fetch(url)
+  let res: Response
+  try {
+    res = await fetch(url)
+  } catch {
+    throw new Error('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.')
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const body = await res.json()
   if (body?.error) throw new Error(body.error)
@@ -118,7 +150,12 @@ export async function fetchOhlcv(args: {
     end_date: args.end_date,
   })}`)
 
-  const res = await fetch(url, { method: 'GET' })
+  let res: Response
+  try {
+    res = await fetch(url, { method: 'GET' })
+  } catch {
+    throw new Error('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.')
+  }
   const body = (await res.json()) as OhlcvResponse
 
   if (!res.ok) {

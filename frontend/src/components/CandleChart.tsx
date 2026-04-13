@@ -34,10 +34,10 @@ function parseAndDedup(candles: Candle[], keepVolume = false) {
       const low = parsePrice(c.low)
       const close = parsePrice(c.close)
       if (
-        !Number.isFinite(open) ||
-        !Number.isFinite(high) ||
-        !Number.isFinite(low) ||
-        !Number.isFinite(close) ||
+        !Number.isFinite(open) || open <= 0 ||
+        !Number.isFinite(high) || high <= 0 ||
+        !Number.isFinite(low) || low <= 0 ||
+        !Number.isFinite(close) || close <= 0 ||
         !/^\d{4}-\d{2}-\d{2}$/.test(timeStr)
       )
         return null
@@ -256,6 +256,27 @@ export function CandleChart(props: {
 
       if (isFreshLoad) {
         series.setData(candleOnly)
+
+        // Y축 스케일을 새 데이터 범위에 맞게 동적으로 재설정 (5% 패딩)
+        if (candleOnly.length > 0) {
+          let minLow = Infinity
+          let maxHigh = -Infinity
+          for (const c of candleOnly) {
+            if (c.low < minLow) minLow = c.low
+            if (c.high > maxHigh) maxHigh = c.high
+          }
+          const range = maxHigh - minLow
+          const padding = range * 0.05
+          series.applyOptions({
+            autoscaleInfoProvider: () => ({
+              priceRange: {
+                minValue: minLow - padding,
+                maxValue: maxHigh + padding,
+              },
+            }),
+          })
+        }
+
         chart.timeScale().fitContent()
         prevFreshLoadIdRef.current = freshLoadId
       } else {

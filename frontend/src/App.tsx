@@ -1,21 +1,24 @@
 import './App.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { BoxRange, Candle, PredictionResult, RecommendationItem } from './lib/api'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { BoxRange, Candle, PredictionResult, RecommendationItem, SearchResult } from './lib/api'
 import { CandleChart } from './components/CandleChart'
-import { fetchOhlcv, fetchRecommendations, fetchPrediction, pingServer } from './lib/api'
+import { fetchOhlcv, fetchRecommendations, fetchPrediction, pingServer, searchStocks } from './lib/api'
 
 const PRED_DAY_OPTIONS = [7, 14, 21, 30] as const
 
 function scoreColor(score: number) {
-  if (score >= 70) return '#22c55e'
+  if (score >= 65) return '#22c55e'
   if (score >= 50) return '#f59e0b'
+  if (score >= 35) return '#f97316'
   return '#ef4444'
 }
 
 function scoreLabel(score: number) {
-  if (score >= 70) return '매수 유리'
+  if (score >= 75) return '강한 매수'
+  if (score >= 60) return '매수 고려'
   if (score >= 50) return '관망'
-  return '매수 주의'
+  if (score >= 35) return '약세 주의'
+  return '매도 권고'
 }
 
 function App() {
@@ -24,7 +27,7 @@ function App() {
   const [ticker, setTicker] = useState('005930')
   const [endDate, setEndDate] = useState(() => toYmd(new Date()))
   const [startDate, setStartDate] = useState(
-    () => toYmd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 180)), // 6개월
+    () => toYmd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 180)),
   )
 
   const [prediction, setPrediction] = useState<PredictionResult | null>(null)
@@ -51,6 +54,16 @@ function App() {
   const [recLoading, setRecLoading] = useState(false)
   const [serverWaking, setServerWaking] = useState(false)
 
+  // ── 자동완성 상태 ──
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [selectedIdx, setSelectedIdx] = useState(-1)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
   const canSubmit = useMemo(() => {
     const t = ticker.trim()
     const s = startDate.trim()
@@ -58,6 +71,72 @@ function App() {
     if (!t || !s || !e) return false
     return s.replace(/-/g, '') <= e.replace(/-/g, '')
   }, [ticker, startDate, endDate])
+
+  // ── 자동완성 검색 (디바운스 250ms) ──
+  const handleSearchInput = useCallback((value: string) => {
+    setTicker(value)
+    setSelectedIdx(-1)
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!value.trim()) {
+      setSearchResults([])
+      setShowDropdown(false)
+      setSearchLoading(false)
+      setSearchError(null)
+      return
+    }
+
+    setSearchLoading(true)
+    setSearchError(null)
+    setShowDropdown(true)
+
+    searchTimerRef.current = setTimeout(async () => {
+      const resp = await searchStocks(value)
+      setSearchResults(resp.results)
+      setSearchError(resp.error ?? null)
+      setSearchLoading(false)
+      setShowDropdown(true)
+    }, 250)
+  }, [])
+
+  // ── 자동완성 항목 선택 ──
+  const selectSearchItem = useCallback((item: SearchResult) => {
+    setTicker(item.name)
+    setShowDropdown(false)
+    setSearchResults([])
+    void load(item.name)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate])
+
+  // ── 바깥 클릭 시 드롭다운 닫기 ──
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          inputRef.current && !inputRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // ── 키보드 네비게이션 ──
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!showDropdown || searchResults.length === 0) return
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setSelectedIdx(prev => Math.min(prev + 1, searchResults.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setSelectedIdx(prev => Math.max(prev - 1, 0))
+    } else if (e.key === 'Enter' && selectedIdx >= 0) {
+      e.preventDefault()
+      selectSearchItem(searchResults[selectedIdx])
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false)
+    }
+  }, [showDropdown, searchResults, selectedIdx, selectSearchItem])
 
   // ── 조회 ─────────────────────────────────────────────────────────
   async function load(overrideTicker?: string) {
@@ -70,6 +149,7 @@ function App() {
     setPredictedCandles([])
     setPrediction(null)
     hasMoreHistoryRef.current = true
+    setShowDropdown(false)
 
     try {
       const result = await fetchOhlcv({
@@ -103,7 +183,7 @@ function App() {
     const earliest = candles[0].time
     const earliestDate = new Date(earliest)
     const newEnd = new Date(earliestDate.getTime() - 86400000)
-    const newStart = new Date(newEnd.getTime() - 86400000 * 180) // 6개월씩 추가
+    const newStart = new Date(newEnd.getTime() - 86400000 * 180)
 
     setIsLoadingMore(true)
     try {
@@ -171,7 +251,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 현재가
   const lastPrice = candles.length > 0 ? candles[candles.length - 1].close : 0
 
   return (
@@ -184,12 +263,42 @@ function App() {
         </div>
 
         <form className="searchBar" onSubmit={(e) => { e.preventDefault(); void load() }}>
-          <input
-            className="searchInput"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            placeholder="종목명 또는 종목코드 (예: 삼성전자)"
-          />
+          <div className="searchInputWrap">
+            <input
+              ref={inputRef}
+              className="searchInput"
+              value={ticker}
+              onChange={(e) => handleSearchInput(e.target.value)}
+              onFocus={() => { if (searchResults.length > 0 || searchError) setShowDropdown(true) }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="종목명 또는 종목코드 (예: 삼성전자)"
+              autoComplete="off"
+            />
+            {showDropdown && (
+              <div className="searchDropdown" ref={dropdownRef}>
+                {searchLoading ? (
+                  <div className="searchDropdownStatus">검색 중…</div>
+                ) : searchError ? (
+                  <div className="searchDropdownStatus searchDropdownError">{searchError}</div>
+                ) : searchResults.length === 0 ? (
+                  <div className="searchDropdownStatus">검색 결과가 없습니다</div>
+                ) : (
+                  searchResults.map((item, idx) => (
+                    <button
+                      key={item.ticker}
+                      type="button"
+                      className={`searchDropdownItem ${idx === selectedIdx ? 'searchDropdownItemActive' : ''}`}
+                      onMouseDown={(e) => { e.preventDefault(); selectSearchItem(item) }}
+                      onMouseEnter={() => setSelectedIdx(idx)}
+                    >
+                      <span className="searchDropdownName">{item.name}</span>
+                      <span className="searchDropdownTicker">{item.ticker}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <button className="btnPrimary" type="submit" disabled={!canSubmit || loading}>
             {loading ? '조회 중…' : '조회'}
           </button>
@@ -246,19 +355,19 @@ function App() {
                 <div className="sellTargetsInline">
                   {prediction.sell_targets.short_term && (
                     <div className="sellInlineRow sellInlineShort">
-                      <span className="sellInlineLabel">단기 목표가</span>
+                      <span className="sellInlineLabel">{prediction.sell_targets.short_term_desc ?? '단기 목표'}</span>
                       <span className="sellInlinePrice">{prediction.sell_targets.short_term.toLocaleString()}원</span>
                     </div>
                   )}
                   {prediction.sell_targets.long_term && (
                     <div className="sellInlineRow sellInlineLong">
-                      <span className="sellInlineLabel">장기 목표가</span>
+                      <span className="sellInlineLabel">{prediction.sell_targets.long_term_desc ?? '장기 목표'}</span>
                       <span className="sellInlinePrice">{prediction.sell_targets.long_term.toLocaleString()}원</span>
                     </div>
                   )}
                   {prediction.sell_targets.stop_loss && (
                     <div className="sellInlineRow sellInlineStop">
-                      <span className="sellInlineLabel">손절가</span>
+                      <span className="sellInlineLabel">{prediction.sell_targets.stop_loss_desc ?? '손절가'}</span>
                       <span className="sellInlinePrice">{prediction.sell_targets.stop_loss.toLocaleString()}원</span>
                     </div>
                   )}
@@ -268,6 +377,7 @@ function App() {
           </div>
 
           <CandleChart
+            key={`${stockName}-${freshLoadId}`}
             candles={candles}
             predictedCandles={predictedCandles}
             supportLines={supportLines}
@@ -308,20 +418,55 @@ function App() {
                 className="predScore"
                 style={{ color: scoreColor(prediction.prediction_score) }}
               >
-                {prediction.prediction_score >= 70
-                  ? '매수 추천'
-                  : prediction.prediction_score >= 40
-                    ? '관망'
-                    : '매수 위험'}{' '}
+                {scoreLabel(prediction.prediction_score)}{' '}
                 {prediction.prediction_score}/100
               </div>
             </div>
 
             <div className="predOutlook">
-              <div>단기(1~2주): <strong>{prediction.outlook_short}</strong></div>
-              <div>중기(1달): <strong>{prediction.outlook_mid}</strong></div>
+              <div className="predOutlookItem">
+                <span className="predOutlookLabel">단기</span>
+                <strong>{prediction.outlook_short}</strong>
+              </div>
+              <div className="predOutlookItem">
+                <span className="predOutlookLabel">중기</span>
+                <strong>{prediction.outlook_mid}</strong>
+              </div>
             </div>
             <p className="predSummary">{prediction.summary}</p>
+
+            {/* 매도 목표/손절 요약 카드 */}
+            {prediction.sell_targets && (
+              <div className="predTargetCards">
+                {prediction.sell_targets.short_term && (
+                  <div className="predTargetCard predTargetShort">
+                    <div className="predTargetLabel">1차 목표</div>
+                    <div className="predTargetPrice">{prediction.sell_targets.short_term.toLocaleString()}원</div>
+                    {prediction.sell_targets.short_term_desc && (
+                      <div className="predTargetDesc">{prediction.sell_targets.short_term_desc}</div>
+                    )}
+                  </div>
+                )}
+                {prediction.sell_targets.long_term && (
+                  <div className="predTargetCard predTargetLong">
+                    <div className="predTargetLabel">최종 목표</div>
+                    <div className="predTargetPrice">{prediction.sell_targets.long_term.toLocaleString()}원</div>
+                    {prediction.sell_targets.long_term_desc && (
+                      <div className="predTargetDesc">{prediction.sell_targets.long_term_desc}</div>
+                    )}
+                  </div>
+                )}
+                {prediction.sell_targets.stop_loss && (
+                  <div className="predTargetCard predTargetStop">
+                    <div className="predTargetLabel">손절가</div>
+                    <div className="predTargetPrice">{prediction.sell_targets.stop_loss.toLocaleString()}원</div>
+                    {prediction.sell_targets.stop_loss_desc && (
+                      <div className="predTargetDesc">{prediction.sell_targets.stop_loss_desc}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="signalList">
               {prediction.signals.map((sig, i) => (
@@ -343,7 +488,10 @@ function App() {
         {/* ── 추천 종목 ────────────────────────────────────────── */}
         <section className="card recCard">
           <div className="recHeader">
-            <strong>추천 종목 Top 10</strong>
+            <div>
+              <strong>추천 종목 Top 10</strong>
+              <span className="recHeaderSub">바닥 반등 + 매집 신호 기반</span>
+            </div>
             <button className="btnSmall" onClick={loadRecommendations} disabled={recLoading}>
               {recLoading ? '계산 중…' : '새로고침'}
             </button>
@@ -372,6 +520,9 @@ function App() {
                     style={{ color: scoreColor(item.score) }}
                   >
                     {item.score}
+                  </span>
+                  <span className="recScoreLabel" style={{ color: scoreColor(item.score) }}>
+                    {scoreLabel(item.score)}
                   </span>
                 </button>
               ))

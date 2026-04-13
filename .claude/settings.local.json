@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npx -p typescript tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(npm run:*)",
+      "Bash(ls node_modules/.bin/tsc*)",
+      "Bash(npm install:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('C:/Users/mj985/Desktop/2025프로젝트/calculatechart/backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\(r'C:\\\\\\\\Users\\\\\\\\mj985\\\\\\\\Desktop\\\\\\\\2025프로젝트\\\\\\\\calculatechart\\\\\\\\backend\\\\\\\\main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\(r'C:\\\\Users\\\\mj985\\\\Desktop\\\\2025프로젝트\\\\calculatechart\\\\backend\\\\main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Python syntax OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\(r'C:\\\\Users\\\\mj985\\\\Desktop\\\\2025프로젝트\\\\calculatechart\\\\backend\\\\main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Python OK'\\)\")",
+      "WebFetch(domain:calculatechart.vercel.app)",
+      "Bash(npx vercel:*)",
+      "WebFetch(domain:calculatechart-api.onrender.com)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Python syntax OK'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Python syntax OK'\\)\")",
+      "Bash(py -3 -c \"import ast; ast.parse\\(open\\('backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('Python syntax OK'\\)\")"
+    ]
+  }
+}
