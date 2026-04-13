@@ -173,6 +173,21 @@ export function CandleChart(props: {
         borderDownColor: '#ef4444',
         wickUpColor: '#22c55e',
         wickDownColor: '#ef4444',
+        // 동적 Y축 스케일: 가시 데이터 범위 기반 + 5% 패딩
+        // (static 클로저가 아닌 original() 호출로 loadMore 후에도 올바르게 갱신)
+        autoscaleInfoProvider: (original) => {
+          const res = original()
+          if (res !== null) {
+            const pad = (res.priceRange.maxValue - res.priceRange.minValue) * 0.05
+            return {
+              priceRange: {
+                minValue: res.priceRange.minValue - pad,
+                maxValue: res.priceRange.maxValue + pad,
+              },
+            }
+          }
+          return res
+        },
       })
 
       // 예측 캔들 시리즈 (기존 캔들과 같은 빨/초 + 반투명 + 점선 테두리)
@@ -256,27 +271,6 @@ export function CandleChart(props: {
 
       if (isFreshLoad) {
         series.setData(candleOnly)
-
-        // Y축 스케일을 새 데이터 범위에 맞게 동적으로 재설정 (5% 패딩)
-        if (candleOnly.length > 0) {
-          let minLow = Infinity
-          let maxHigh = -Infinity
-          for (const c of candleOnly) {
-            if (c.low < minLow) minLow = c.low
-            if (c.high > maxHigh) maxHigh = c.high
-          }
-          const range = maxHigh - minLow
-          const padding = range * 0.05
-          series.applyOptions({
-            autoscaleInfoProvider: () => ({
-              priceRange: {
-                minValue: minLow - padding,
-                maxValue: maxHigh + padding,
-              },
-            }),
-          })
-        }
-
         chart.timeScale().fitContent()
         prevFreshLoadIdRef.current = freshLoadId
       } else {

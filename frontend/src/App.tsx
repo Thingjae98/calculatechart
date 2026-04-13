@@ -146,6 +146,7 @@ function App() {
 
     setLoading(true)
     setError(null)
+    setCandles([])
     setFreshLoadId((id) => id + 1)
     setPredictedCandles([])
     setPrediction(null)
