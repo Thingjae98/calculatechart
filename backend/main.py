@@ -1572,29 +1572,31 @@ def _generate_predicted_candles(
             prev_close_p = c
 
     # ══════════════════════════════════════════════════════════════════
-    # ❾ 앙상블 집계: 중앙값으로 대표 캔들 도출
+    # ❾ 앙상블 집계: 대표 경로 선택 (Representative Path)
+    #
+    # element-wise median은 각 날짜마다 서로 다른 경로에서 값을 취하므로
+    # 랜덤 움직임이 서로 상쇄되어 밋밋한 직선이 됨.
+    # 대신, 50개 경로 중 "최종 종가가 중앙값에 가장 가까운 단일 경로"를 채택하면
+    # 실제 차트처럼 자연스러운 등락이 살아있으면서도 통계적으로 대표성 있는 예측이 됨.
     # ══════════════════════════════════════════════════════════════════
+
+    # 각 경로의 최종 종가 (마지막 날 close)
+    final_closes = all_paths[:, -1, 3]  # (N_PATHS,)
+    median_final = float(np.median(final_closes))
+
+    # 중앙값에 가장 가까운 경로 선택
+    distances = np.abs(final_closes - median_final)
+    best_path_idx = int(np.argmin(distances))
+
     candles = []
     for i in range(n_days):
-        day_data = all_paths[:, i, :]  # (N_PATHS, 4) = O, H, L, C
-
-        # 중앙값 (50번째 퍼센타일) — 극단 경로에 덜 민감
-        med_o = float(np.median(day_data[:, 0]))
-        med_h = float(np.percentile(day_data[:, 1], 60))  # 고가는 약간 상향
-        med_l = float(np.percentile(day_data[:, 2], 40))  # 저가는 약간 하향
-        med_c = float(np.median(day_data[:, 3]))
-
-        # OHLC 정합성 보장
-        final_h = max(med_o, med_c, med_h)
-        final_l = min(med_o, med_c, med_l)
-        final_l = max(1, final_l)
-
+        o, h, lo, c = all_paths[best_path_idx, i]
         candles.append({
             "time": business_days[i].isoformat(),
-            "open": max(1, round(med_o)),
-            "high": max(1, round(final_h)),
-            "low": max(1, round(final_l)),
-            "close": max(1, round(med_c)),
+            "open": max(1, round(o)),
+            "high": max(1, round(max(o, c, h))),
+            "low": max(1, round(min(o, c, lo))),
+            "close": max(1, round(c)),
         })
 
     return candles
@@ -1630,22 +1632,47 @@ def _detect_box_range(df: pd.DataFrame) -> dict:
     return {"is_box": False}
 
 
-def _fetch_ohlcv_sync(start: str, end: str, ticker: str) -> pd.DataFrame:
-    """pykrx 동기 호출 래퍼 — 긴 기간은 3개월 단위로 분할 요청 후 합산.
+def _fetch_ohlcv_fdr(start_iso: str, end_iso: str, ticker: str) -> pd.DataFrame:
+    """FinanceDataReader로 OHLCV 조회 (1차 소스).
 
-    pykrx(KRX API)는 긴 기간을 한 번에 요청하면 데이터가 누락되는 경우가 있음.
-    특히 연도 경계(2025→2026)에서 잘림 현상 빈번.
-    3개월(90일) 단위로 분할하여 요청하면 안정적으로 전체 데이터를 받을 수 있음.
+    fdr은 pykrx보다 안정적이고 긴 기간 요청에서도 데이터 누락이 없음.
+    반환 형식: DatetimeIndex + Open, High, Low, Close, Volume, Change (6열)
+    → _standardize_ohlcv 호환 (reset_index 시 7열)
     """
+    df = fdr.DataReader(ticker, start_iso, end_iso)
+    if df is None or df.empty:
+        return pd.DataFrame()
+    # fdr 컬럼 → pykrx 호환 컬럼명으로 변환
+    rename_map = {}
+    for col in df.columns:
+        cl = col.lower()
+        if cl == "open": rename_map[col] = "시가"
+        elif cl == "high": rename_map[col] = "고가"
+        elif cl == "low": rename_map[col] = "저가"
+        elif cl == "close": rename_map[col] = "종가"
+        elif cl == "volume": rename_map[col] = "거래량"
+        elif cl == "change": rename_map[col] = "등락률"
+    if rename_map:
+        df = df.rename(columns=rename_map)
+    # 필수 컬럼 누락 시 빈 DataFrame
+    for req in ["시가", "고가", "저가", "종가", "거래량"]:
+        if req not in df.columns:
+            return pd.DataFrame()
+    # 등락률 없으면 0으로 채움 (7열 맞추기)
+    if "등락률" not in df.columns:
+        df["등락률"] = 0.0
+    return df[["시가", "고가", "저가", "종가", "거래량", "등락률"]]
+
+
+def _fetch_ohlcv_pykrx(start: str, end: str, ticker: str) -> pd.DataFrame:
+    """pykrx로 OHLCV 조회 (폴백) — 3개월 단위 분할 요청."""
     start_d = date(int(start[:4]), int(start[4:6]), int(start[6:8]))
     end_d = date(int(end[:4]), int(end[4:6]), int(end[6:8]))
     total_days = (end_d - start_d).days
 
-    # 90일 이하면 분할 불필요
     if total_days <= 90:
         return stock.get_market_ohlcv(start, end, ticker)
 
-    # 3개월(90일) 단위로 분할 요청
     chunks: list[pd.DataFrame] = []
     chunk_start = start_d
     while chunk_start <= end_d:
@@ -1662,20 +1689,63 @@ def _fetch_ohlcv_sync(start: str, end: str, ticker: str) -> pd.DataFrame:
 
     if not chunks:
         return pd.DataFrame()
-
     combined = pd.concat(chunks)
-    # 날짜 중복 제거 (경계일이 양쪽에 포함될 수 있음)
     combined = combined[~combined.index.duplicated(keep="first")]
     return combined.sort_index()
 
 
+def _fetch_ohlcv_sync(start: str, end: str, ticker: str) -> pd.DataFrame:
+    """OHLCV 조회 — fdr 1차 → pykrx 폴백.
+
+    fdr(FinanceDataReader)이 긴 기간 데이터에서 훨씬 안정적이므로 1차 소스로 사용.
+    fdr 실패 시 pykrx 3개월 분할 조회로 폴백.
+    """
+    start_iso = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
+    end_iso = f"{end[:4]}-{end[4:6]}-{end[6:8]}"
+    expected_days = (date(int(end[:4]), int(end[4:6]), int(end[6:8]))
+                     - date(int(start[:4]), int(start[4:6]), int(start[6:8]))).days
+    expected_trading_days = max(10, int(expected_days * 5 / 7 * 0.6))  # 보수적 기대치
+
+    # ── 1차: FinanceDataReader ──
+    try:
+        df_fdr = _fetch_ohlcv_fdr(start_iso, end_iso, ticker)
+        if df_fdr is not None and not df_fdr.empty and len(df_fdr) >= expected_trading_days:
+            logger.info("fdr OHLCV 조회 성공 (%s): %d행", ticker, len(df_fdr))
+            return df_fdr
+        elif df_fdr is not None and not df_fdr.empty:
+            logger.info("fdr OHLCV 부분 성공 (%s): %d행 (기대 %d+), pykrx 보충 시도",
+                        ticker, len(df_fdr), expected_trading_days)
+    except Exception as e:
+        logger.warning("fdr OHLCV 실패 (%s): %s", ticker, e)
+
+    # ── 2차: pykrx (분할 조회) ──
+    try:
+        df_pykrx = _fetch_ohlcv_pykrx(start, end, ticker)
+        if df_pykrx is not None and not df_pykrx.empty:
+            logger.info("pykrx OHLCV 조회 성공 (%s): %d행", ticker, len(df_pykrx))
+            # fdr 부분 결과가 있었으면 병합
+            if 'df_fdr' in dir() and df_fdr is not None and not df_fdr.empty:
+                combined = pd.concat([df_fdr, df_pykrx])
+                combined = combined[~combined.index.duplicated(keep="first")]
+                logger.info("fdr+pykrx 병합 결과: %d행", len(combined))
+                return combined.sort_index()
+            return df_pykrx
+    except Exception as e:
+        logger.warning("pykrx OHLCV도 실패 (%s): %s", ticker, e)
+
+    # fdr 부분 결과라도 반환
+    if 'df_fdr' in dir() and df_fdr is not None and not df_fdr.empty:
+        return df_fdr
+
+    return pd.DataFrame()
+
+
 async def _fetch_ohlcv(start: str, end: str, ticker: str) -> pd.DataFrame:
-    """pykrx 호출에 타임아웃 적용 (분할 조회 포함으로 타임아웃 여유 확보)"""
+    """OHLCV 조회 비동기 래퍼 (fdr→pykrx 폴백 포함)"""
     total_days = (date(int(end[:4]), int(end[4:6]), int(end[6:8]))
                   - date(int(start[:4]), int(start[4:6]), int(start[6:8]))).days
-    # 긴 기간은 타임아웃을 비례 확장 (기본 30초 + 청크당 15초)
     n_chunks = max(1, total_days // 90 + 1)
-    timeout = max(PYKRX_TIMEOUT_SEC, PYKRX_TIMEOUT_SEC + (n_chunks - 1) * 15)
+    timeout = max(PYKRX_TIMEOUT_SEC, PYKRX_TIMEOUT_SEC + n_chunks * 10)
     return await _run_with_timeout(_fetch_ohlcv_sync, start, end, ticker, timeout=timeout)
 
 
