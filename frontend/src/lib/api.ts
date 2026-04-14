@@ -106,13 +106,15 @@ export async function pingServer(): Promise<boolean> {
   }
 }
 
+/**
+ * 주가 예측 요청.
+ * 백엔드가 자체적으로 365일 데이터를 조회하므로 날짜 파라미터 불필요.
+ */
 export async function fetchPrediction(
   ticker: string,
-  startDate: string,
-  endDate: string,
   nDays: number = 7,
 ): Promise<PredictionResult> {
-  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, n_days: String(nDays) })
+  const params = new URLSearchParams({ n_days: String(nDays) })
   const url = buildApiUrl(`/api/stock/${encodeURIComponent(ticker)}/predict?${params}`)
   let res: Response
   try {
@@ -126,11 +128,6 @@ export async function fetchPrediction(
   return body
 }
 
-function toQuery(params: Record<string, string>) {
-  const usp = new URLSearchParams()
-  for (const [k, v] of Object.entries(params)) usp.set(k, v)
-  return usp.toString()
-}
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? ''
 
 function buildApiUrl(path: string) {
@@ -140,15 +137,29 @@ function buildApiUrl(path: string) {
   return `${base}${p}`
 }
 
+/**
+ * OHLCV 데이터 조회.
+ *
+ * 두 가지 모드:
+ * 1. 초기 조회: ticker만 전달 → 백엔드가 최근 365일 데이터 + 점수 반환
+ * 2. 스크롤 추가 로드: ticker + before_date + days_back → 지정 날짜 이전 N일 데이터 반환
+ */
 export async function fetchOhlcv(args: {
   ticker: string
-  start_date: string
-  end_date: string
+  before_date?: string   // 'YYYY-MM-DD' — 이 날짜 이전 데이터 요청 (스크롤 로드용)
+  days_back?: number     // before_date 기준 며칠 이전까지 (기본 180)
 }) {
-  const url = buildApiUrl(`/api/stock/${encodeURIComponent(args.ticker)}?${toQuery({
-    start_date: args.start_date,
-    end_date: args.end_date,
-  })}`)
+  const params: Record<string, string> = {}
+  if (args.before_date) {
+    params.before_date = args.before_date
+  }
+  if (args.days_back) {
+    params.days_back = String(args.days_back)
+  }
+
+  const query = new URLSearchParams(params).toString()
+  const path = `/api/stock/${encodeURIComponent(args.ticker)}${query ? `?${query}` : ''}`
+  const url = buildApiUrl(path)
 
   let res: Response
   try {
@@ -228,4 +239,3 @@ export async function fetchRecommendations(limit = 10): Promise<RecommendationIt
 
   return body.top.filter(isRecommendationItem)
 }
-

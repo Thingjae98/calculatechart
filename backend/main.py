@@ -229,6 +229,15 @@ def _standardize_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
+def _clean_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
+    """NaN/0값 행 제거 + 숫자 변환 — 거래정지일 등에서 발생하는 차트 끊김 방지."""
+    for col in ["open", "high", "low", "close"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["open", "high", "low", "close"])
+    df = df[(df["close"] > 0) & (df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0)]
+    return df
+
+
 def _support_resistance(
     close_values: np.ndarray,
     high_values: np.ndarray | None = None,
@@ -1779,51 +1788,79 @@ def ping():
 @app.get("/api/stock/{ticker_or_name}")
 async def get_stock_data(
     ticker_or_name: str,
-    start_date: str | None = Query(None, description="YYYYMMDD 또는 YYYY-MM-DD"),
-    end_date: str | None = Query(None, description="YYYYMMDD 또는 YYYY-MM-DD"),
+    before_date: str | None = Query(None, description="YYYY-MM-DD — 이 날짜 이전 데이터 (스크롤 추가 로드용)"),
+    days_back: int = Query(365, ge=30, le=730, description="조회할 일수 (기본 365)"),
 ):
+    """
+    OHLCV 데이터 + 점수 + 지지/저항선 조회.
+
+    두 가지 모드:
+    1. 초기 조회 (before_date 없음): 오늘 기준 최근 days_back일 데이터 + 점수/분석 반환
+    2. 스크롤 추가 로드 (before_date 있음): before_date 이전 days_back일 데이터만 반환 (점수 없음)
+    """
     try:
-        end_d = date.today()
-        start_d = end_d - timedelta(days=90)
-        start = _normalize_input_date(start_date, start_d)
-        end = _normalize_input_date(end_date, end_d)
-
         ticker, stock_name = _resolve_ticker(ticker_or_name)
-        raw = await _fetch_ohlcv(start, end, ticker)
-        if raw.empty:
-            return {"error": "해당 기간의 데이터가 없거나 종목 코드/이름이 잘못되었습니다."}
 
-        df = _standardize_ohlcv(raw)
-        # NaN/0값 행 제거 — 거래정지일 등에서 발생하는 차트 끊김 방지
-        for col in ["open", "high", "low", "close"]:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        df = df.dropna(subset=["open", "high", "low", "close"])
-        df = df[(df["close"] > 0) & (df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0)]
-        # 요청 기간 밖 데이터 필터링 — pykrx가 기간 밖 데이터를 반환하는 경우 방지
-        start_iso = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
-        end_iso = f"{end[:4]}-{end[4:6]}-{end[6:8]}"
-        df = df[(df["time"] >= start_iso) & (df["time"] <= end_iso)]
-        df = df.sort_values("time").reset_index(drop=True)
-        data = df[["time", "open", "high", "low", "close", "volume"]].to_dict(orient="records")
-        close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
-        high_values = pd.to_numeric(df["high"], errors="coerce").dropna().to_numpy(dtype=float)
-        low_values = pd.to_numeric(df["low"], errors="coerce").dropna().to_numpy(dtype=float)
-        vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
-        support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
-        box_range = _detect_box_range(df)
-        score, _signals, _internals = _unified_score(df, support_lines, resistance_lines, box_range)
-        score_breakdown = {}
+        if before_date:
+            # ── 스크롤 추가 로드 모드: 지정 날짜 이전 데이터만 반환 ──
+            try:
+                end_d = date.fromisoformat(before_date.strip())
+            except ValueError:
+                return {"error": f"before_date 형식 오류: {before_date} (YYYY-MM-DD 필요)"}
+            start_d = end_d - timedelta(days=days_back)
+            start = _yyyymmdd(start_d)
+            end = _yyyymmdd(end_d)
 
-        return {
-            "ticker": ticker,
-            "stock_name": stock_name,
-            "data": data,
-            "support_lines": support_lines,
-            "resistance_lines": resistance_lines,
-            "score": score,
-            "score_breakdown": score_breakdown,
-            "box_range": box_range,
-        }
+            raw = await _fetch_ohlcv(start, end, ticker)
+            if raw.empty:
+                return {"ticker": ticker, "stock_name": stock_name, "data": []}
+
+            df = _standardize_ohlcv(raw)
+            df = _clean_ohlcv(df)
+            # before_date 이전(이하) 데이터만 반환
+            df = df[df["time"] <= before_date.strip()]
+            df = df.sort_values("time").reset_index(drop=True)
+            data = df[["time", "open", "high", "low", "close", "volume"]].to_dict(orient="records")
+
+            return {
+                "ticker": ticker,
+                "stock_name": stock_name,
+                "data": data,
+            }
+        else:
+            # ── 초기 조회 모드: 최근 365일 + 점수/분석 ──
+            end_d = date.today()
+            start_d = end_d - timedelta(days=days_back)
+            start = _yyyymmdd(start_d)
+            end = _yyyymmdd(end_d)
+
+            raw = await _fetch_ohlcv(start, end, ticker)
+            if raw.empty:
+                return {"error": "데이터가 없거나 종목 코드/이름이 잘못되었습니다."}
+
+            df = _standardize_ohlcv(raw)
+            df = _clean_ohlcv(df)
+            df = df.sort_values("time").reset_index(drop=True)
+            data = df[["time", "open", "high", "low", "close", "volume"]].to_dict(orient="records")
+
+            close_values = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
+            high_values = pd.to_numeric(df["high"], errors="coerce").dropna().to_numpy(dtype=float)
+            low_values = pd.to_numeric(df["low"], errors="coerce").dropna().to_numpy(dtype=float)
+            vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
+            support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
+            box_range = _detect_box_range(df)
+            score, _signals, _internals = _unified_score(df, support_lines, resistance_lines, box_range)
+
+            return {
+                "ticker": ticker,
+                "stock_name": stock_name,
+                "data": data,
+                "support_lines": support_lines,
+                "resistance_lines": resistance_lines,
+                "score": score,
+                "score_breakdown": {},
+                "box_range": box_range,
+            }
     except asyncio.TimeoutError:
         logger.warning("주가 데이터 조회 타임아웃: %s", ticker_or_name)
         return {"error": f"주가 데이터 조회 시간 초과 ({PYKRX_TIMEOUT_SEC}초). 잠시 후 다시 시도해주세요."}
@@ -1936,8 +1973,6 @@ async def get_recommendations(limit: int = Query(10, ge=1, le=50)):
 @app.get("/api/stock/{ticker_or_name}/predict")
 async def predict_stock(
     ticker_or_name: str,
-    start_date: str | None = None,
-    end_date: str | None = None,
     n_days: int = Query(7, ge=1, le=30, description="예측할 영업일 수 (1~30)"),
 ):
     try:
@@ -1947,16 +1982,17 @@ async def predict_stock(
             ticker = ticker_or_name
             stock_name = ticker_or_name
 
-        end_d = datetime.today()
+        end_d = date.today()
         start_d = end_d - timedelta(days=365)
-        start_str = start_d.strftime("%Y%m%d")
-        end_str = end_d.strftime("%Y%m%d")
+        start_str = _yyyymmdd(start_d)
+        end_str = _yyyymmdd(end_d)
 
         raw = await _fetch_ohlcv(start_str, end_str, ticker)
         if raw.empty:
             return {"error": "데이터 없음"}
 
         df = _standardize_ohlcv(raw)
+        df = _clean_ohlcv(df)
         close = pd.to_numeric(df["close"], errors="coerce")
         high  = pd.to_numeric(df["high"], errors="coerce")
         cur   = float(close.iloc[-1])

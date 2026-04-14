@@ -134,36 +134,6 @@
   color: #ef4444;
 }
 
-/* 날짜 행 */
-.dateRow {
-  display: flex;
-  gap: 10px;
-}
-
-.dateField {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.dateField input {
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: rgba(0, 0, 0, 0.03);
-  color: var(--text-h);
-  padding: 0 10px;
-  font-size: 14px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .dateField input {
-    background: rgba(255, 255, 255, 0.04);
-  }
-}
-
 /* ── 버튼 ─────────────────────────────────────────────────────── */
 .btnPrimary {
   height: 44px;
@@ -686,10 +656,6 @@
   .predOutlook {
     flex-direction: column;
     gap: 4px;
-  }
-  .dateRow {
-    flex-direction: column;
-    gap: 6px;
   }
   .sellTargetsInline {
     margin-top: 8px;

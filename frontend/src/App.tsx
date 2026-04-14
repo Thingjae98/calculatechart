@@ -22,14 +22,8 @@ function scoreLabel(score: number) {
 }
 
 function App() {
-  const toYmd = (d: Date) => d.toISOString().slice(0, 10)
-
   const [ticker, setTicker] = useState('005930')
-  const [resolvedTicker, setResolvedTicker] = useState('')  // 실제 종목코드 (loadMore용)
-  const [endDate, setEndDate] = useState(() => toYmd(new Date()))
-  const [startDate, setStartDate] = useState(
-    () => toYmd(new Date(Date.now() - 1000 * 60 * 60 * 24 * 180)),
-  )
+  const [resolvedTicker, setResolvedTicker] = useState('')
 
   const [prediction, setPrediction] = useState<PredictionResult | null>(null)
   const [predLoading, setPredLoading] = useState(false)
@@ -65,13 +59,7 @@ function App() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const canSubmit = useMemo(() => {
-    const t = ticker.trim()
-    const s = startDate.trim()
-    const e = endDate.trim()
-    if (!t || !s || !e) return false
-    return s.replace(/-/g, '') <= e.replace(/-/g, '')
-  }, [ticker, startDate, endDate])
+  const canSubmit = useMemo(() => !!ticker.trim(), [ticker])
 
   // ── 자동완성 검색 (디바운스 250ms) ──
   const handleSearchInput = useCallback((value: string) => {
@@ -107,7 +95,7 @@ function App() {
     setSearchResults([])
     void load(item.name)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate])
+  }, [])
 
   // ── 바깥 클릭 시 드롭다운 닫기 ──
   useEffect(() => {
@@ -153,13 +141,9 @@ function App() {
     setShowDropdown(false)
 
     try {
-      const result = await fetchOhlcv({
-        ticker: t,
-        start_date: startDate.trim(),
-        end_date: endDate.trim(),
-      })
+      const result = await fetchOhlcv({ ticker: t })
       setCandles(result.data)
-      setResolvedTicker(result.ticker)  // 종목코드 저장 (loadMore용)
+      setResolvedTicker(result.ticker)
       setSupportLines(result.support_lines ?? [])
       setResistanceLines(result.resistance_lines ?? [])
       setStockName(result.stock_name ?? t)
@@ -182,11 +166,18 @@ function App() {
   async function loadMore() {
     if (isLoadingMore || !candles.length || !hasMoreHistoryRef.current) return
 
-    // resolvedTicker(종목코드)를 사용 — 이름으로 재검색 시 오류 방지
     const tickerCode = resolvedTicker || ticker.trim()
-
     const earliest = candles[0].time
     const earliestDate = new Date(earliest)
+
+    // 최대 3년(약 1095일) 이전 데이터까지만 로드
+    const threeYearsAgo = new Date()
+    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3)
+    if (earliestDate <= threeYearsAgo) {
+      hasMoreHistoryRef.current = false
+      return
+    }
+
     const newEnd = new Date(earliestDate.getTime() - 86400000)
     const newStart = new Date(newEnd.getTime() - 86400000 * 180)
 
@@ -194,13 +185,12 @@ function App() {
     try {
       const result = await fetchOhlcv({
         ticker: tickerCode,
-        start_date: toYmd(newStart),
-        end_date: toYmd(newEnd),
+        before_date: newEnd.toISOString().slice(0, 10),
+        days_back: 180,
       })
       if (result.data.length === 0) {
         hasMoreHistoryRef.current = false
       } else {
-        // 기존 데이터의 earliest보다 과거 데이터만 추가 (겹침/갭 방지)
         const filtered = result.data.filter((c) => c.time < earliest)
         if (filtered.length === 0) {
           hasMoreHistoryRef.current = false
@@ -217,11 +207,12 @@ function App() {
 
   // ── N일 주가 예측 ─────────────────────────────────────────────────
   async function onPredict(days: number) {
+    const tickerCode = resolvedTicker || ticker.trim()
     setPredDays(days)
     setPredLoading(true)
     setPredError(null)
     try {
-      const result = await fetchPrediction(ticker.trim(), startDate, endDate, days)
+      const result = await fetchPrediction(tickerCode, days)
       setPrediction(result)
       setPredictedCandles(result.predicted_candles ?? [])
     } catch (err) {
@@ -266,7 +257,7 @@ function App() {
 
   return (
     <div className="app">
-      {/* ── 헤더: 검색 + 기간 ────────────────────────────────────── */}
+      {/* ── 헤더: 검색 ────────────────────────────────────── */}
       <header className="header">
         <div className="headerTop">
           <h1 className="logo">차트 분석</h1>
@@ -314,17 +305,6 @@ function App() {
             {loading ? '조회 중…' : '조회'}
           </button>
         </form>
-
-        <div className="dateRow">
-          <label className="dateField">
-            <span>시작일</span>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-          </label>
-          <label className="dateField">
-            <span>종료일</span>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          </label>
-        </div>
       </header>
 
       <main className="main">
