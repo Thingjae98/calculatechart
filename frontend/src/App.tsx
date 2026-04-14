@@ -179,7 +179,6 @@ function App() {
     }
 
     const newEnd = new Date(earliestDate.getTime() - 86400000)
-    const newStart = new Date(newEnd.getTime() - 86400000 * 180)
 
     setIsLoadingMore(true)
     try {
