@@ -42,6 +42,9 @@ function App() {
   const [fibonacci, setFibonacci] = useState<FibonacciLevels | undefined>(undefined)
   const [ichimoku, setIchimoku] = useState<IchimokuValues | undefined>(undefined)
 
+  const [showAllMA, setShowAllMA] = useState(false)
+  const [showFibonacci, setShowFibonacci] = useState(false)
+
   const [freshLoadId, setFreshLoadId] = useState(0)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const hasMoreHistoryRef = useRef(true)
@@ -372,6 +375,21 @@ function App() {
             </div>
           </div>
 
+          <div className="chartToggles">
+            <button
+              className={`predBtn ${showAllMA ? 'predBtnActive' : ''}`}
+              onClick={() => setShowAllMA((v) => !v)}
+            >
+              {showAllMA ? '이평선 전체 ✓' : '이평선 전체'}
+            </button>
+            <button
+              className={`predBtn ${showFibonacci ? 'predBtnActive' : ''}`}
+              onClick={() => setShowFibonacci((v) => !v)}
+            >
+              {showFibonacci ? '피보나치 ✓' : '피보나치'}
+            </button>
+          </div>
+
           <CandleChart
             key={`${stockName}-${freshLoadId}`}
             candles={candles}
@@ -381,6 +399,8 @@ function App() {
             boxRange={boxRange}
             fibonacci={fibonacci}
             ichimoku={ichimoku}
+            showAllMA={showAllMA}
+            showFibonacci={showFibonacci}
             freshLoadId={freshLoadId}
             onLoadMore={loadMore}
             predDays={predDays}

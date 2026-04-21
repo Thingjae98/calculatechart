@@ -286,6 +286,18 @@
   transition: width 0.4s ease;
 }
 
+/* 차트 토글 버튼 */
+.chartToggles {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px 0;
+}
+.chartToggles .predBtn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+}
+
 /* 차트 컨테이너 */
 .chartWrap {
   position: relative;

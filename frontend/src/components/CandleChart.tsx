@@ -98,6 +98,8 @@ export function CandleChart(props: {
   boxRange?: { is_box: boolean; top?: number; bottom?: number }
   fibonacci?: FibonacciLevels
   ichimoku?: IchimokuValues
+  showAllMA?: boolean
+  showFibonacci?: boolean
   onLoadMore?: () => void
   freshLoadId?: number
   predDays?: number
@@ -320,24 +322,28 @@ export function CandleChart(props: {
         volumeSeriesRef.current.setData(volData)
       }
 
-      // 이동평균선
-      const closeData = seriesData.map((d) => ({
-        time: d.time,
-        close: d.close,
-      }))
-      MA_CONFIG.forEach((ma, idx) => {
-        const maSeries = maSeriesRefs.current[idx]
-        if (maSeries) {
-          maSeries.setData(calcSMA(closeData, ma.period))
-        }
-      })
-
       prevSeriesLengthRef.current = seriesData.length
       setErrorMsg(null)
     } catch (err) {
       setErrorMsg(`차트 데이터 오류: ${toMessage(err)}`)
     }
   }, [seriesData, props.freshLoadId])
+
+  // ── 이동평균선 ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!maSeriesRefs.current.length || seriesData.length === 0) return
+    const closeData = seriesData.map((d) => ({ time: d.time, close: d.close }))
+    MA_CONFIG.forEach((ma, idx) => {
+      const maSeries = maSeriesRefs.current[idx]
+      if (!maSeries) return
+      const isOptional = ma.period === 5 || ma.period === 120
+      if (isOptional && !props.showAllMA) {
+        maSeries.setData([])
+      } else {
+        maSeries.setData(calcSMA(closeData, ma.period))
+      }
+    })
+  }, [seriesData, props.showAllMA])
 
   // ── 예측 캔들 ────────────────────────────────────────────────────
   useEffect(() => {
@@ -436,7 +442,7 @@ export function CandleChart(props: {
       fibPriceLinesRef.current = []
 
       const fib = props.fibonacci
-      if (!fib?.levels) return
+      if (!fib?.levels || !props.showFibonacci) return
 
       const isValid = (p: unknown): p is number =>
         typeof p === 'number' && Number.isFinite(p) && p > 0
@@ -459,62 +465,20 @@ export function CandleChart(props: {
     } catch (e) {
       console.error('피보나치 라인 오류:', toMessage(e))
     }
-  }, [props.fibonacci])
+  }, [props.fibonacci, props.showFibonacci])
 
-  // ── 일목균형표 라인 ──────────────────────────────────────────────
+  // 일목균형표는 차트에 표시하지 않음 (백엔드 점수 계산에만 사용)
   useEffect(() => {
     const series = seriesRef.current
     if (!series) return
-    try {
-      for (const line of ichiPriceLinesRef.current) series.removePriceLine(line)
-      ichiPriceLinesRef.current = []
-
-      const ichi = props.ichimoku
-      if (!ichi) return
-
-      const isValid = (p: unknown): p is number =>
-        typeof p === 'number' && Number.isFinite(p) && p > 0
-
-      // 전환선 (빨간 실선)
-      if (isValid(ichi.tenkan)) {
-        ichiPriceLinesRef.current.push(series.createPriceLine({
-          price: ichi.tenkan, color: '#f87171',
-          lineWidth: 1, lineStyle: LineStyle.Solid,
-          axisLabelVisible: true, title: '전환',
-        }))
-      }
-      // 기준선 (파란 실선)
-      if (isValid(ichi.kijun)) {
-        ichiPriceLinesRef.current.push(series.createPriceLine({
-          price: ichi.kijun, color: '#60a5fa',
-          lineWidth: 1, lineStyle: LineStyle.Solid,
-          axisLabelVisible: true, title: '기준',
-        }))
-      }
-      // 구름 상단 (선행스팬1 / 선행스팬2 중 큰 값 — 녹색 or 빨간)
-      if (isValid(ichi.cloud_top)) {
-        const cloudColor = ichi.cloud_bullish ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'
-        ichiPriceLinesRef.current.push(series.createPriceLine({
-          price: ichi.cloud_top, color: cloudColor,
-          lineWidth: 1, lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true, title: ichi.cloud_bullish ? '구름上(양)' : '구름上(음)',
-        }))
-      }
-      // 구름 하단
-      if (isValid(ichi.cloud_bottom)) {
-        const cloudColor = ichi.cloud_bullish ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'
-        ichiPriceLinesRef.current.push(series.createPriceLine({
-          price: ichi.cloud_bottom, color: cloudColor,
-          lineWidth: 1, lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true, title: ichi.cloud_bullish ? '구름下(양)' : '구름下(음)',
-        }))
-      }
-    } catch (e) {
-      console.error('일목균형표 라인 오류:', toMessage(e))
-    }
+    for (const line of ichiPriceLinesRef.current) series.removePriceLine(line)
+    ichiPriceLinesRef.current = []
   }, [props.ichimoku])
 
   const predDaysLabel = props.predDays ?? predictedData.length
+  const activeMAs = props.showAllMA
+    ? MA_CONFIG
+    : MA_CONFIG.filter((ma) => ma.period === 20 || ma.period === 60)
 
   return (
     <div className="chartWrap">
@@ -526,11 +490,16 @@ export function CandleChart(props: {
       )}
       {/* 범례 */}
       <div className="chartLegend">
-        {MA_CONFIG.map((ma) => (
+        {activeMAs.map((ma) => (
           <span key={ma.period} style={{ color: ma.color }}>
             ― {ma.label}
           </span>
         ))}
+        {props.showFibonacci && props.fibonacci && (
+          <span style={{ color: 'rgba(250, 180, 50, 0.9)' }}>
+            ― 피보나치
+          </span>
+        )}
         {predictedData.length > 0 && (
           <span style={{ color: 'rgba(34, 197, 94, 0.7)' }}>
             ◧ AI {predDaysLabel}일 예측 (반투명)
