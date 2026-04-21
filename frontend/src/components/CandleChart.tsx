@@ -9,6 +9,7 @@ import {
   type ISeriesApi,
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { FibonacciLevels, IchimokuValues } from '../lib/api'
 
 export interface Candle {
   time: string
@@ -80,12 +81,23 @@ const MA_CONFIG = [
   { period: 120, color: '#a855f7', label: '120일' },
 ] as const
 
+// 피보나치 레벨별 색상 (골드 계열, 투명도 차등)
+const FIB_COLORS: Record<string, string> = {
+  '0.236': 'rgba(250, 200, 50, 0.6)',
+  '0.382': 'rgba(250, 170, 20, 0.85)',
+  '0.500': 'rgba(250, 140, 20, 0.85)',
+  '0.618': 'rgba(230, 100, 20, 0.9)',
+  '0.786': 'rgba(200, 70, 20, 0.7)',
+}
+
 export function CandleChart(props: {
   candles: Candle[]
   predictedCandles?: Candle[]
   supportLines?: number[]
   resistanceLines?: number[]
   boxRange?: { is_box: boolean; top?: number; bottom?: number }
+  fibonacci?: FibonacciLevels
+  ichimoku?: IchimokuValues
   onLoadMore?: () => void
   freshLoadId?: number
   predDays?: number
@@ -99,6 +111,8 @@ export function CandleChart(props: {
   const supportPriceLinesRef = useRef<IPriceLine[]>([])
   const resistancePriceLinesRef = useRef<IPriceLine[]>([])
   const boxPriceLinesRef = useRef<IPriceLine[]>([])
+  const fibPriceLinesRef = useRef<IPriceLine[]>([])
+  const ichiPriceLinesRef = useRef<IPriceLine[]>([])
   // sellPriceLinesRef 제거 — 매도가는 UI 텍스트로 표시
 
   const onLoadMoreRef = useRef<(() => void) | undefined>(undefined)
@@ -412,6 +426,93 @@ export function CandleChart(props: {
       console.error('라인 오버레이 실패:', toMessage(e))
     }
   }, [props.supportLines, props.resistanceLines, props.boxRange])
+
+  // ── 피보나치 되돌림 라인 ─────────────────────────────────────────
+  useEffect(() => {
+    const series = seriesRef.current
+    if (!series) return
+    try {
+      for (const line of fibPriceLinesRef.current) series.removePriceLine(line)
+      fibPriceLinesRef.current = []
+
+      const fib = props.fibonacci
+      if (!fib?.levels) return
+
+      const isValid = (p: unknown): p is number =>
+        typeof p === 'number' && Number.isFinite(p) && p > 0
+
+      for (const [ratio, price] of Object.entries(fib.levels)) {
+        if (!isValid(price)) continue
+        const color = FIB_COLORS[ratio] ?? 'rgba(250, 180, 50, 0.7)'
+        const pct = Math.round(parseFloat(ratio) * 100)
+        fibPriceLinesRef.current.push(
+          series.createPriceLine({
+            price,
+            color,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `Fib ${pct}%`,
+          }),
+        )
+      }
+    } catch (e) {
+      console.error('피보나치 라인 오류:', toMessage(e))
+    }
+  }, [props.fibonacci])
+
+  // ── 일목균형표 라인 ──────────────────────────────────────────────
+  useEffect(() => {
+    const series = seriesRef.current
+    if (!series) return
+    try {
+      for (const line of ichiPriceLinesRef.current) series.removePriceLine(line)
+      ichiPriceLinesRef.current = []
+
+      const ichi = props.ichimoku
+      if (!ichi) return
+
+      const isValid = (p: unknown): p is number =>
+        typeof p === 'number' && Number.isFinite(p) && p > 0
+
+      // 전환선 (빨간 실선)
+      if (isValid(ichi.tenkan)) {
+        ichiPriceLinesRef.current.push(series.createPriceLine({
+          price: ichi.tenkan, color: '#f87171',
+          lineWidth: 1, lineStyle: LineStyle.Solid,
+          axisLabelVisible: true, title: '전환',
+        }))
+      }
+      // 기준선 (파란 실선)
+      if (isValid(ichi.kijun)) {
+        ichiPriceLinesRef.current.push(series.createPriceLine({
+          price: ichi.kijun, color: '#60a5fa',
+          lineWidth: 1, lineStyle: LineStyle.Solid,
+          axisLabelVisible: true, title: '기준',
+        }))
+      }
+      // 구름 상단 (선행스팬1 / 선행스팬2 중 큰 값 — 녹색 or 빨간)
+      if (isValid(ichi.cloud_top)) {
+        const cloudColor = ichi.cloud_bullish ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'
+        ichiPriceLinesRef.current.push(series.createPriceLine({
+          price: ichi.cloud_top, color: cloudColor,
+          lineWidth: 1, lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true, title: ichi.cloud_bullish ? '구름上(양)' : '구름上(음)',
+        }))
+      }
+      // 구름 하단
+      if (isValid(ichi.cloud_bottom)) {
+        const cloudColor = ichi.cloud_bullish ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)'
+        ichiPriceLinesRef.current.push(series.createPriceLine({
+          price: ichi.cloud_bottom, color: cloudColor,
+          lineWidth: 1, lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true, title: ichi.cloud_bullish ? '구름下(양)' : '구름下(음)',
+        }))
+      }
+    } catch (e) {
+      console.error('일목균형표 라인 오류:', toMessage(e))
+    }
+  }, [props.ichimoku])
 
   const predDaysLabel = props.predDays ?? predictedData.length
 

@@ -1,6 +1,6 @@
 import './App.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BoxRange, Candle, PredictionResult, RecommendationItem, SearchResult } from './lib/api'
+import type { BoxRange, Candle, FibonacciLevels, IchimokuValues, PredictionResult, RecommendationItem, SearchResult } from './lib/api'
 import { CandleChart } from './components/CandleChart'
 import { fetchOhlcv, fetchRecommendations, fetchPrediction, pingServer, searchStocks } from './lib/api'
 
@@ -39,6 +39,8 @@ function App() {
   const [stockName, setStockName] = useState('')
   const [chartScore, setChartScore] = useState(0)
   const [boxRange, setBoxRange] = useState<BoxRange>({ is_box: false })
+  const [fibonacci, setFibonacci] = useState<FibonacciLevels | undefined>(undefined)
+  const [ichimoku, setIchimoku] = useState<IchimokuValues | undefined>(undefined)
 
   const [freshLoadId, setFreshLoadId] = useState(0)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -149,6 +151,8 @@ function App() {
       setStockName(result.stock_name ?? t)
       setChartScore(result.score ?? 0)
       setBoxRange(result.box_range ?? { is_box: false })
+      setFibonacci(result.fibonacci)
+      setIchimoku(result.ichimoku)
     } catch (err) {
       setError(err instanceof Error ? err.message : '요청 중 오류가 발생했습니다.')
       setCandles([])
@@ -157,6 +161,8 @@ function App() {
       setStockName('')
       setChartScore(0)
       setBoxRange({ is_box: false })
+      setFibonacci(undefined)
+      setIchimoku(undefined)
     } finally {
       setLoading(false)
     }
@@ -373,6 +379,8 @@ function App() {
             supportLines={supportLines}
             resistanceLines={resistanceLines}
             boxRange={boxRange}
+            fibonacci={fibonacci}
+            ichimoku={ichimoku}
             freshLoadId={freshLoadId}
             onLoadMore={loadMore}
             predDays={predDays}

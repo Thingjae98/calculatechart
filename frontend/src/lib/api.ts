@@ -23,6 +23,27 @@ export type BoxRange = {
   bottom?: number
 }
 
+export type FibonacciLevels = {
+  swing_high: number
+  swing_low: number
+  levels: Record<string, number>  // e.g. {"0.382": 12345, "0.618": 15678, ...}
+  direction: 'up' | 'down'
+}
+
+export type IchimokuValues = {
+  tenkan: number        // 전환선 (9일)
+  kijun: number         // 기준선 (26일)
+  senkou_a: number      // 선행스팬1
+  senkou_b: number      // 선행스팬2
+  chikou: number        // 후행스팬 (현재 종가)
+  cloud_top: number
+  cloud_bottom: number
+  cloud_bullish: boolean
+  price_above_cloud: boolean
+  price_below_cloud: boolean
+  tenkan_above_kijun: boolean
+}
+
 export type OhlcvResponse = {
   ticker: string
   data: RawCandle[]
@@ -30,6 +51,8 @@ export type OhlcvResponse = {
   support_lines?: number[]
   resistance_lines?: number[]
   box_range?: BoxRange
+  fibonacci?: FibonacciLevels
+  ichimoku?: IchimokuValues
   score?: number
   score_breakdown?: Record<string, number>
   error?: string
@@ -208,6 +231,18 @@ export async function fetchOhlcv(args: {
         }
       : { is_box: false }
 
+  const fibRaw = body.fibonacci as Partial<FibonacciLevels> | undefined
+  const fibonacci: FibonacciLevels | undefined =
+    fibRaw && typeof fibRaw.swing_high === 'number' && fibRaw.levels
+      ? (fibRaw as FibonacciLevels)
+      : undefined
+
+  const ichiRaw = body.ichimoku as Partial<IchimokuValues> | undefined
+  const ichimoku: IchimokuValues | undefined =
+    ichiRaw && typeof ichiRaw.tenkan === 'number' && typeof ichiRaw.kijun === 'number'
+      ? (ichiRaw as IchimokuValues)
+      : undefined
+
   return {
     ticker: body.ticker,
     stock_name: body.stock_name ?? body.ticker,
@@ -215,6 +250,8 @@ export async function fetchOhlcv(args: {
     support_lines: supportLines,
     resistance_lines: resistanceLines,
     box_range: boxRange,
+    fibonacci,
+    ichimoku,
     score: typeof body.score === 'number' ? body.score : 0,
     score_breakdown: body.score_breakdown ?? {},
   }

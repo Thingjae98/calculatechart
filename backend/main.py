@@ -387,6 +387,107 @@ def _support_resistance(
     return support_out, resistance_out
 
 
+def _compute_fibonacci_levels(df: pd.DataFrame, lookback_days: int = 120) -> dict:
+    """
+    최근 lookback_days 중 유의미한 고점/저점 탐지 후 피보나치 되돌림 레벨 반환.
+    상승 파동(저점→고점) 기준으로 되돌림 레벨 계산.
+    반환값: { "swing_high": float, "swing_low": float, "levels": {ratio_str: price}, "direction": "up"|"down" }
+    """
+    try:
+        close = pd.to_numeric(df["close"], errors="coerce").dropna()
+        high  = pd.to_numeric(df["high"],  errors="coerce").dropna()
+        low   = pd.to_numeric(df["low"],   errors="coerce").dropna()
+
+        tail_len = min(lookback_days, len(close))
+        close_t = close.tail(tail_len)
+        high_t  = high.tail(tail_len)
+        low_t   = low.tail(tail_len)
+
+        swing_high = float(high_t.max())
+        swing_low  = float(low_t.min())
+        cur        = float(close.iloc[-1])
+
+        if swing_high <= swing_low or swing_high == 0:
+            return {}
+
+        fib_range = swing_high - swing_low
+        # 현재가 위치에 따라 방향 결정 (상단 40% → 하락 되돌림, 하단 60% → 상승 복귀)
+        pos = (cur - swing_low) / fib_range
+        direction = "down" if pos >= 0.6 else "up"
+
+        ratios = [0.236, 0.382, 0.500, 0.618, 0.786]
+        levels: dict[str, float] = {}
+        for r in ratios:
+            if direction == "down":
+                # 고점에서 되돌림 (하락 되돌림)
+                price = swing_high - fib_range * r
+            else:
+                # 저점에서 복귀 (상승 복귀)
+                price = swing_low + fib_range * r
+            levels[str(r)] = round(price, 0)
+
+        return {
+            "swing_high": swing_high,
+            "swing_low": swing_low,
+            "levels": levels,
+            "direction": direction,
+        }
+    except Exception:
+        return {}
+
+
+def _compute_ichimoku(df: pd.DataFrame) -> dict:
+    """
+    일목균형표 5선 계산.
+    전환선(9), 기준선(26), 선행스팬1(미래26봉), 선행스팬2(미래26봉), 후행스팬(과거26봉).
+    반환값: 최신값만 담은 dict (차트 오버레이용)
+      tenkan, kijun, senkou_a, senkou_b, chikou,
+      cloud_top, cloud_bottom, cloud_bullish (bool)
+    """
+    try:
+        high  = pd.to_numeric(df["high"],  errors="coerce")
+        low   = pd.to_numeric(df["low"],   errors="coerce")
+        close = pd.to_numeric(df["close"], errors="coerce")
+
+        def mid(h: pd.Series, l: pd.Series, n: int) -> pd.Series:
+            return (h.rolling(n).max() + l.rolling(n).min()) / 2
+
+        tenkan  = mid(high, low, 9)   # 전환선
+        kijun   = mid(high, low, 26)  # 기준선
+        senkou_a = ((tenkan + kijun) / 2)           # 선행스팬1 (실제로는 26봉 앞이지만 현재값으로 반환)
+        senkou_b = mid(high, low, 52)               # 선행스팬2
+
+        if tenkan.dropna().empty or kijun.dropna().empty:
+            return {}
+
+        t_val  = float(tenkan.iloc[-1])
+        k_val  = float(kijun.iloc[-1])
+        sa_val = float(senkou_a.iloc[-1])
+        sb_val = float(senkou_b.iloc[-1])
+        chikou_val = float(close.iloc[-1])  # 후행스팬 = 현재 종가 (차트에서 26봉 뒤에 표시)
+
+        cloud_top    = max(sa_val, sb_val)
+        cloud_bottom = min(sa_val, sb_val)
+        cur          = float(close.iloc[-1])
+        cloud_bullish = sa_val >= sb_val  # 양운(호재) vs 음운(악재)
+
+        return {
+            "tenkan":       round(t_val, 0),
+            "kijun":        round(k_val, 0),
+            "senkou_a":     round(sa_val, 0),
+            "senkou_b":     round(sb_val, 0),
+            "chikou":       round(chikou_val, 0),
+            "cloud_top":    round(cloud_top, 0),
+            "cloud_bottom": round(cloud_bottom, 0),
+            "cloud_bullish": cloud_bullish,
+            "price_above_cloud": cur > cloud_top,
+            "price_below_cloud": cur < cloud_bottom,
+            "tenkan_above_kijun": t_val >= k_val,
+        }
+    except Exception:
+        return {}
+
+
 def _unified_score(
     df: pd.DataFrame,
     support_lines: list[float] | None = None,
@@ -428,8 +529,8 @@ def _unified_score(
         rsi_series = ta.rsi(close, length=14)
     else:
         delta = close.diff()
-        gain  = delta.clip(lower=0).rolling(14).mean()
-        loss  = (-delta.clip(upper=0)).rolling(14).mean()
+        gain  = delta.clip(lower=0).ewm(com=13, adjust=False).mean()
+        loss  = (-delta.clip(upper=0)).ewm(com=13, adjust=False).mean()
         rs    = gain / loss.replace(0, np.nan)
         rsi_series = 100 - (100 / (1 + rs))
 
@@ -460,6 +561,17 @@ def _unified_score(
     obv_sign[price_diff > 0] = 1.0
     obv_sign[price_diff < 0] = -1.0
     obv = (vol * obv_sign).cumsum()
+
+    # 스토캐스틱 %K / %D  (14-3-3 표준 파라미터)
+    stoch_k: pd.Series | None = None
+    stoch_d: pd.Series | None = None
+    if len(close) >= 14:
+        low14  = low.rolling(14).min()
+        high14 = high.rolling(14).max()
+        denom  = (high14 - low14).replace(0, np.nan)
+        raw_k  = (close - low14) / denom * 100
+        stoch_k = raw_k.rolling(3).mean()   # smoothed %K
+        stoch_d = stoch_k.rolling(3).mean() # %D signal
 
     # BB 스퀴즈 감지 (변동성/거래량 양쪽에서 사용하므로 미리 계산)
     is_squeeze = False
@@ -645,6 +757,34 @@ def _unified_score(
             signals.append({"type": "negative", "label": "주가 흐름 약함 📉",
                             "desc": "중단기 흐름이 하락 중이에요."})
 
+    # ── 일목균형표 추세 보조 (추세 카테고리 보완) ──
+    ichi = _compute_ichimoku(df)
+    if ichi:
+        if ichi.get("price_above_cloud") and ichi.get("tenkan_above_kijun") and ichi.get("cloud_bullish"):
+            trend_pts += 4
+            signals.append({"type": "positive", "label": "일목균형표 강세 ☁️📈",
+                            "desc": "구름 위에 있고 전환선이 기준선 위예요. 강한 상승 신호."})
+        elif ichi.get("price_above_cloud"):
+            trend_pts += 2
+            signals.append({"type": "positive", "label": "구름 위 위치 ☁️",
+                            "desc": "일목 구름 위에 있어요. 중기 상승 추세."})
+        elif ichi.get("price_below_cloud") and not ichi.get("tenkan_above_kijun") and not ichi.get("cloud_bullish"):
+            trend_pts -= 4
+            signals.append({"type": "negative", "label": "일목균형표 약세 ☁️📉",
+                            "desc": "구름 아래에서 전환선도 기준선 아래예요. 하락 추세 강함."})
+        elif ichi.get("price_below_cloud"):
+            trend_pts -= 2
+            signals.append({"type": "negative", "label": "구름 아래 위치 ☁️",
+                            "desc": "일목 구름 아래에 있어요. 중기 하락 압력."})
+        else:
+            # 구름 안: 방향 불확실
+            if ichi.get("tenkan_above_kijun"):
+                signals.append({"type": "neutral", "label": "구름 통과 중 (상승 시도) ☁️",
+                                "desc": "구름 안에서 전환선이 기준선 위예요. 돌파 여부 주시."})
+            else:
+                signals.append({"type": "neutral", "label": "구름 통과 중 (하락 압력) ☁️",
+                                "desc": "구름 안에서 전환선이 기준선 아래예요. 방향 관망."})
+
     # ══════════════════════════════════════════════
     # ❷ 모멘텀 CATEGORY  (cap ±12)
     # ══════════════════════════════════════════════
@@ -692,26 +832,84 @@ def _unified_score(
             signals.append({"type": "neutral", "label": f"보통 상태 (RSI {rsi_val:.0f})",
                             "desc": "지금은 특별히 싸지도, 비싸지도 않아요."})
 
-        # ── RSI 상승 다이버전스: 주가 신저가 but RSI는 더 높은 저점 ──
-        if len(close) >= 30 and len(rsi_series.dropna()) >= 30:
-            c_tail = close.tail(30).values
-            r_tail = rsi_series.dropna().tail(30).values
-            if len(r_tail) >= 30:
-                # 전반부(~15일 전) 저점 vs 후반부(최근) 저점
-                first_half_c = c_tail[:15]
-                second_half_c = c_tail[15:]
-                first_half_r = r_tail[:15]
-                second_half_r = r_tail[15:]
-                c_low1 = float(np.min(first_half_c))
-                c_low2 = float(np.min(second_half_c))
-                r_low1 = float(np.min(first_half_r))
-                r_low2 = float(np.min(second_half_r))
-                # 주가는 더 낮은 저점 → RSI는 더 높은 저점
-                if c_low2 < c_low1 * 0.99 and r_low2 > r_low1 * 1.02:
-                    rsi_divergence = True
-                    momentum_pts += 4
-                    signals.append({"type": "positive", "label": "RSI 상승 다이버전스 📈",
-                                    "desc": "주가는 더 내렸지만 힘(RSI)은 올라가고 있어요. 반전 신호!"})
+        # ── RSI 다이버전스: find_peaks 기반 실제 저점/고점 쌍 비교 ──
+        if len(close) >= 40 and len(rsi_series.dropna()) >= 40:
+            c_arr = close.tail(60).values.astype(float)
+            r_arr = rsi_series.dropna().tail(60).values.astype(float)
+            # 배열 길이 맞추기
+            n = min(len(c_arr), len(r_arr))
+            c_arr, r_arr = c_arr[-n:], r_arr[-n:]
+
+            # 저점 쌍 (상승 다이버전스): 가격 반전 저점을 -c_arr에서 find_peaks로 탐색
+            try:
+                trough_idx, _ = find_peaks(-c_arr, distance=8, prominence=c_arr.std() * 0.3)
+                if len(trough_idx) >= 2:
+                    i1, i2 = trough_idx[-2], trough_idx[-1]
+                    # 가격: 더 낮은 저점, RSI: 더 높은 저점 → 불리쉬 다이버전스
+                    if c_arr[i2] < c_arr[i1] * 0.99 and r_arr[i2] > r_arr[i1] * 1.03:
+                        rsi_divergence = True
+                        momentum_pts += 5
+                        signals.append({"type": "positive", "label": "RSI 상승 다이버전스 📈",
+                                        "desc": "주가는 더 내렸지만 힘(RSI)은 올라가고 있어요. 반전 신호!"})
+
+                # 고점 쌍 (하락 다이버전스): 가격 고점 상승 & RSI 고점 하락
+                peak_idx, _ = find_peaks(c_arr, distance=8, prominence=c_arr.std() * 0.3)
+                if len(peak_idx) >= 2 and not rsi_divergence:
+                    i1, i2 = peak_idx[-2], peak_idx[-1]
+                    if c_arr[i2] > c_arr[i1] * 1.01 and r_arr[i2] < r_arr[i1] * 0.97:
+                        momentum_pts -= 4
+                        signals.append({"type": "negative", "label": "RSI 하락 다이버전스 ⚠️",
+                                        "desc": "주가는 더 올랐지만 힘(RSI)이 약해지고 있어요. 상승 둔화 경고!"})
+            except (ValueError, IndexError):
+                pass
+
+    # ── 스토캐스틱 %K / %D ──
+    # RSI와 독립적으로 과매수/과매도 확인 → 두 지표 동시 신호면 신뢰도 2배
+    stoch_signal = None
+    if stoch_k is not None and stoch_d is not None:
+        stoch_k_clean = stoch_k.dropna()
+        stoch_d_clean = stoch_d.dropna()
+        if not stoch_k_clean.empty and not stoch_d_clean.empty:
+            sk = float(stoch_k_clean.iloc[-1])
+            sd = float(stoch_d_clean.iloc[-1])
+
+            if sk <= 20 and sd <= 20:
+                stoch_signal = "oversold"
+                if rsi_val is not None and rsi_val <= 35:
+                    # RSI + 스토캐스틱 이중 과매도 → 강한 반등 신호
+                    momentum_pts += 5
+                    signals.append({"type": "positive", "label": f"이중 과매도 확인 (Stoch {sk:.0f} + RSI {rsi_val:.0f}) 🎯",
+                                    "desc": "두 개의 지표가 동시에 '많이 내렸다'고 말하고 있어요. 강한 반등 가능성!"})
+                else:
+                    momentum_pts += 3
+                    signals.append({"type": "positive", "label": f"스토캐스틱 과매도 (Stoch {sk:.0f})",
+                                    "desc": "단기적으로 많이 내려온 상태예요. 반등 가능성 있어요."})
+
+            elif sk >= 80 and sd >= 80:
+                stoch_signal = "overbought"
+                if rsi_val is not None and rsi_val >= 65:
+                    momentum_pts -= 5
+                    signals.append({"type": "negative", "label": f"이중 과매수 확인 (Stoch {sk:.0f} + RSI {rsi_val:.0f}) ⚠️",
+                                    "desc": "두 개의 지표가 동시에 '많이 올랐다'고 말하고 있어요. 조정 가능성!"})
+                else:
+                    momentum_pts -= 3
+                    signals.append({"type": "negative", "label": f"스토캐스틱 과매수 (Stoch {sk:.0f})",
+                                    "desc": "단기적으로 많이 올라온 상태예요. 추가 매수 신중하게."})
+
+            # %K가 %D를 아래→위로 돌파 (골든크로스): 저점에서 특히 강한 신호
+            elif len(stoch_k_clean) >= 2 and len(stoch_d_clean) >= 2:
+                sk_prev = float(stoch_k_clean.iloc[-2])
+                sd_prev = float(stoch_d_clean.iloc[-2])
+                if sk_prev < sd_prev and sk >= sd and sk < 50:
+                    stoch_signal = "golden"
+                    momentum_pts += 3
+                    signals.append({"type": "positive", "label": f"스토캐스틱 반등 전환 (Stoch {sk:.0f}) 🔄",
+                                    "desc": "단기 지표가 바닥에서 반등 신호를 보내고 있어요."})
+                elif sk_prev > sd_prev and sk <= sd and sk > 50:
+                    stoch_signal = "dead"
+                    momentum_pts -= 2
+                    signals.append({"type": "negative", "label": f"스토캐스틱 하락 전환 (Stoch {sk:.0f})",
+                                    "desc": "단기 지표가 고점에서 꺾이고 있어요."})
 
     # ── MACD ──
     if not histogram.dropna().empty and len(histogram.dropna()) >= 2:
@@ -735,6 +933,33 @@ def _unified_score(
             momentum_pts += 2
             signals.append({"type": "neutral", "label": "하락세 둔화 조짐 🔄",
                             "desc": "아직 약세지만 내리는 힘이 줄고 있어요. 전환 초기 신호일 수 있어요."})
+
+        # ── MACD 다이버전스: find_peaks 기반 저점/고점 쌍 비교 ──
+        if len(close) >= 40 and len(histogram.dropna()) >= 40:
+            c_arr2 = close.tail(60).values.astype(float)
+            h_arr  = histogram.dropna().tail(60).values.astype(float)
+            n2 = min(len(c_arr2), len(h_arr))
+            c_arr2, h_arr = c_arr2[-n2:], h_arr[-n2:]
+            try:
+                # 상승 다이버전스: 가격 저점↓ & MACD 히스토그램 저점↑
+                trough_c, _ = find_peaks(-c_arr2, distance=8, prominence=c_arr2.std() * 0.3)
+                if len(trough_c) >= 2:
+                    i1, i2 = trough_c[-2], trough_c[-1]
+                    if c_arr2[i2] < c_arr2[i1] * 0.99 and h_arr[i2] > h_arr[i1] * 1.05 and h_arr[i1] < 0:
+                        momentum_pts += 4
+                        signals.append({"type": "positive", "label": "MACD 상승 다이버전스 ⚡",
+                                        "desc": "가격은 더 내렸지만 MACD 힘은 줄어들고 있어요. 반전 가능성!"})
+
+                # 하락 다이버전스: 가격 고점↑ & MACD 히스토그램 고점↓
+                peak_c, _ = find_peaks(c_arr2, distance=8, prominence=c_arr2.std() * 0.3)
+                if len(peak_c) >= 2:
+                    i1, i2 = peak_c[-2], peak_c[-1]
+                    if c_arr2[i2] > c_arr2[i1] * 1.01 and h_arr[i2] < h_arr[i1] * 0.95 and h_arr[i1] > 0:
+                        momentum_pts -= 4
+                        signals.append({"type": "negative", "label": "MACD 하락 다이버전스 ⚠️",
+                                        "desc": "가격은 더 올랐지만 MACD 힘이 약해지고 있어요. 상승 둔화 경고."})
+            except (ValueError, IndexError):
+                pass
 
     # ══════════════════════════════════════════════
     # ❸ 변동성 CATEGORY  (cap ±10)
@@ -989,40 +1214,71 @@ def _unified_score(
     # ── 캔들 패턴 인식 (최근 3봉 분석) ──
     candle_pattern = None
     if len(close) >= 3 and len(open_) >= 3 and len(high) >= 3 and len(low) >= 3:
+        # c0: 3봉 전, c1: 전봉, c2: 현재봉
+        c0_o = float(open_.iloc[-3]) if len(open_) >= 3 else None
+        c0_h = float(high.iloc[-3])  if len(high) >= 3  else None
+        c0_l = float(low.iloc[-3])   if len(low) >= 3   else None
+        c0_c = float(close.iloc[-3]) if len(close) >= 3 else None
         c1_o, c1_h, c1_l, c1_c = float(open_.iloc[-2]), float(high.iloc[-2]), float(low.iloc[-2]), float(close.iloc[-2])
         c2_o, c2_h, c2_l, c2_c = float(open_.iloc[-1]), float(high.iloc[-1]), float(low.iloc[-1]), float(close.iloc[-1])
         atr_now = float(atr14.iloc[-1]) if not atr14.dropna().empty else (c2_h - c2_l)
 
         if atr_now > 0:
+            body0 = abs(c0_c - c0_o) if c0_o is not None else 0
             body1 = abs(c1_c - c1_o)
             body2 = abs(c2_c - c2_o)
             lower_wick2 = min(c2_o, c2_c) - c2_l
             upper_wick2 = c2_h - max(c2_o, c2_c)
+            lower_wick1 = min(c1_o, c1_c) - c1_l
+            upper_wick1 = c1_h - max(c1_o, c1_c)
 
             # 망치형(Hammer): 하락 후 긴 아래꼬리 + 작은 몸통
-            if (c1_c < c1_o and  # 전일 음봉
-                lower_wick2 > body2 * 2 and  # 아래꼬리가 몸통의 2배 이상
-                upper_wick2 < body2 * 0.5 and  # 위꼬리 작음
-                body2 < atr_now * 0.6):  # 몸통이 ATR 60% 이하
+            if (c1_c < c1_o and
+                lower_wick2 > body2 * 2 and
+                upper_wick2 < body2 * 0.5 and
+                body2 < atr_now * 0.6):
                 candle_pattern = "hammer"
                 structure_pts += 3
                 signals.append({"type": "positive", "label": "망치형 캔들 🔨",
                                 "desc": "바닥에서 강한 매수세가 들어왔어요. 반등 신호!"})
 
-            # 상승장악형(Bullish Engulfing): 음봉 후 큰 양봉이 감싸는 패턴
-            elif (c1_c < c1_o and  # 전일 음봉
-                  c2_c > c2_o and  # 금일 양봉
-                  c2_o <= c1_c and  # 금일 시가 <= 전일 종가
-                  c2_c >= c1_o and  # 금일 종가 >= 전일 시가
-                  body2 > body1 * 1.2):  # 금일 몸통이 전일보다 큼
+            # 역망치형(Inverted Hammer): 하락 후 긴 위꼬리 + 작은 몸통 → 매수세 시도
+            elif (c1_c < c1_o and
+                  upper_wick2 > body2 * 2 and
+                  lower_wick2 < body2 * 0.5 and
+                  body2 < atr_now * 0.6):
+                candle_pattern = "inverted_hammer"
+                structure_pts += 2
+                signals.append({"type": "positive", "label": "역망치형 캔들 🔼",
+                                "desc": "위쪽으로 매수 시도가 있었어요. 다음 봉 확인 필요."})
+
+            # 도지(Doji): 시가≈종가 (결정 불확실성, 추세 전환 경고)
+            elif (body2 < atr_now * 0.1 and
+                  (c2_h - c2_l) > atr_now * 0.3):
+                candle_pattern = "doji"
+                # 하락 추세 후 도지: 반등 가능성
+                if c1_c < c1_o and float(close.iloc[-5]) > float(close.iloc[-2]) if len(close) >= 5 else False:
+                    structure_pts += 2
+                    signals.append({"type": "positive", "label": "도지 캔들 (하락 끝?) ⚖️",
+                                    "desc": "사는 힘과 파는 힘이 팽팽해요. 하락 추세가 멈출 수 있어요."})
+                else:
+                    signals.append({"type": "neutral", "label": "도지 캔들 ⚖️",
+                                    "desc": "매수/매도 힘이 비슷해요. 방향 결정 전 관망 구간."})
+
+            # 상승장악형(Bullish Engulfing)
+            elif (c1_c < c1_o and
+                  c2_c > c2_o and
+                  c2_o <= c1_c and
+                  c2_c >= c1_o and
+                  body2 > body1 * 1.2):
                 candle_pattern = "engulfing"
                 structure_pts += 3
                 signals.append({"type": "positive", "label": "상승장악형 캔들 🟢",
                                 "desc": "매도세를 완전히 압도하는 매수세가 나왔어요!"})
 
             # 하락장악형(Bearish Engulfing)
-            elif (c1_c > c1_o and  # 전일 양봉
-                  c2_c < c2_o and  # 금일 음봉
+            elif (c1_c > c1_o and
+                  c2_c < c2_o and
                   c2_o >= c1_c and
                   c2_c <= c1_o and
                   body2 > body1 * 1.2):
@@ -1030,6 +1286,48 @@ def _unified_score(
                 structure_pts -= 3
                 signals.append({"type": "negative", "label": "하락장악형 캔들 🔴",
                                 "desc": "매수세를 압도하는 매도세가 나왔어요. 하락 주의."})
+
+            # 모닝스타(Morning Star): 3봉 — 큰 음봉 + 소형봉(갭) + 큰 양봉
+            elif (c0_o is not None and
+                  c0_c < c0_o and body0 > atr_now * 0.6 and  # 첫째: 큰 음봉
+                  body1 < atr_now * 0.3 and                   # 둘째: 소형봉
+                  c1_h < c0_c and                              # 둘째가 첫째 종가보다 낮음
+                  c2_c > c2_o and body2 > atr_now * 0.6 and  # 셋째: 큰 양봉
+                  c2_c > (c0_o + c0_c) / 2):                  # 첫째 봉 절반 이상 회복
+                candle_pattern = "morning_star"
+                structure_pts += 5
+                signals.append({"type": "positive", "label": "모닝스타 패턴 🌟",
+                                "desc": "3일 연속 바닥 반전 패턴이에요. 강한 반등 신호!"})
+
+            # 이브닝스타(Evening Star): 3봉 — 큰 양봉 + 소형봉(갭) + 큰 음봉
+            elif (c0_o is not None and
+                  c0_c > c0_o and body0 > atr_now * 0.6 and  # 첫째: 큰 양봉
+                  body1 < atr_now * 0.3 and                   # 둘째: 소형봉
+                  c1_l > c0_c and                              # 둘째가 첫째 종가보다 높음
+                  c2_c < c2_o and body2 > atr_now * 0.6 and  # 셋째: 큰 음봉
+                  c2_c < (c0_o + c0_c) / 2):                  # 첫째 봉 절반 이하로 하락
+                candle_pattern = "evening_star"
+                structure_pts -= 5
+                signals.append({"type": "negative", "label": "이브닝스타 패턴 🌙",
+                                "desc": "3일 연속 천장 반전 패턴이에요. 하락 전환 경고."})
+
+            # 십자형 샛별(Dragonfly Doji): 거의 위꼬리 없고 긴 아래꼬리 + 도지
+            elif (body2 < atr_now * 0.1 and
+                  lower_wick2 > atr_now * 0.6 and
+                  upper_wick2 < atr_now * 0.15):
+                candle_pattern = "dragonfly_doji"
+                structure_pts += 3
+                signals.append({"type": "positive", "label": "잠자리형 도지 🐉",
+                                "desc": "아래로 많이 눌렸다가 회복했어요. 강한 반등 신호."})
+
+            # 비석형 도지(Gravestone Doji): 긴 위꼬리 + 아래꼬리 없음 + 도지 → 천장 신호
+            elif (body2 < atr_now * 0.1 and
+                  upper_wick2 > atr_now * 0.6 and
+                  lower_wick2 < atr_now * 0.15):
+                candle_pattern = "gravestone_doji"
+                structure_pts -= 3
+                signals.append({"type": "negative", "label": "비석형 도지 🪦",
+                                "desc": "위로 올랐다가 밀렸어요. 천장 신호일 수 있어요."})
 
     # ════════════════════════════════════════════════════
     # 카테고리 캡 적용
@@ -1043,7 +1341,7 @@ def _unified_score(
     # ── 반등 시너지: 바닥 신호가 복수 동시 발생 시 보너스 ──
     reversal_flags = [has_cup_pattern, accumulation_detected, obv_divergence,
                       squeeze_breakout, has_golden_cross, rsi_divergence,
-                      breakout_pullback]
+                      breakout_pullback, stoch_signal == "oversold"]
     reversal_count = sum(reversal_flags)
     synergy_bonus = 0
     if reversal_count >= 3:
@@ -1920,6 +2218,8 @@ async def get_stock_data(
             support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
             box_range = _detect_box_range(df)
             score, _signals, _internals = _unified_score(df, support_lines, resistance_lines, box_range)
+            fibonacci = _compute_fibonacci_levels(df)
+            ichimoku  = _compute_ichimoku(df)
 
             return {
                 "ticker": ticker,
@@ -1930,6 +2230,8 @@ async def get_stock_data(
                 "score": score,
                 "score_breakdown": {},
                 "box_range": box_range,
+                "fibonacci": fibonacci,
+                "ichimoku": ichimoku,
             }
     except asyncio.TimeoutError:
         logger.warning("주가 데이터 조회 타임아웃: %s", ticker_or_name)
@@ -1942,15 +2244,18 @@ async def get_stock_data(
 def _compute_recommendations_sync(day: str, listing: pd.DataFrame, sample_size: int) -> list[dict]:
     """추천 종목 스코어링 — 시가총액 기반 필터링 + 바닥 반등 종목 발굴"""
 
-    # ── 1. 시가총액으로 유의미한 종목만 선별 ──
+    # ── 1. 시가총액 + 거래대금으로 유의미한 종목만 선별 ──
     cap_tickers: set[str] | None = None
     try:
         market_cap = stock.get_market_cap_by_ticker(day)
         if not market_cap.empty and "시가총액" in market_cap.columns:
-            # 시가총액 500억 이상만 (너무 작은 종목은 기술적 분석 신뢰도 낮음)
+            # 시가총액 500억 이상
             valid = market_cap[market_cap["시가총액"] >= 50_000_000_000]
+            # 거래대금 20억 이상 (유동성 부족 종목 제거 — 실매매 불가)
+            if "거래대금" in market_cap.columns:
+                valid = valid[valid["거래대금"] >= 2_000_000_000]
             cap_tickers = set(valid.index.astype(str).str.zfill(6).tolist())
-            logger.info("시가총액 필터: %d → %d종목", len(market_cap), len(cap_tickers))
+            logger.info("시가총액+거래대금 필터: %d → %d종목", len(market_cap), len(cap_tickers))
     except Exception as ex:
         logger.warning("시가총액 조회 실패 (리스팅 순서로 fallback): %s", ex)
 
