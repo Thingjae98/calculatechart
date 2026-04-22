@@ -722,16 +722,22 @@ def _unified_score(
                     has_cup_pattern = True
                     cup_vol_confirmed = vol_confirmed
 
-        # ── 골든크로스: SMA20이 SMA60을 아래→위로 돌파 ──
-        if len(sma20.dropna()) >= 5 and len(sma60.dropna()) >= 5:
-            sma20_recent = sma20.dropna().tail(5).values
-            sma60_recent = sma60.dropna().tail(5).values
-            min_len = min(len(sma20_recent), len(sma60_recent))
-            if min_len >= 5:
-                sma20_r = sma20_recent[-min_len:]
-                sma60_r = sma60_recent[-min_len:]
-                if sma20_r[0] < sma60_r[0] and sma20_r[-1] >= sma60_r[-1]:
-                    has_golden_cross = True
+        # ── 골든크로스: 최근 10봉 이내 돌파 지점과 "경과 일수" 추적 ──
+        # baseline: 돌파 후 여러 날 지난 상태에도 +12점 → 고점 추격 문제. 신선도로 감쇠.
+        days_since_golden_cross: int | None = None
+        if len(sma20.dropna()) >= 10 and len(sma60.dropna()) >= 10:
+            sma20_arr = sma20.dropna().tail(10).values
+            sma60_arr = sma60.dropna().tail(10).values
+            min_len = min(len(sma20_arr), len(sma60_arr))
+            if min_len >= 2:
+                sma20_arr = sma20_arr[-min_len:]
+                sma60_arr = sma60_arr[-min_len:]
+                # 최근 → 과거 순으로 순회하며 최근 돌파 지점 탐색
+                for i in range(min_len - 1, 0, -1):
+                    if sma20_arr[i] >= sma60_arr[i] and sma20_arr[i - 1] < sma60_arr[i - 1]:
+                        days_since_golden_cross = (min_len - 1) - i
+                        has_golden_cross = True
+                        break
 
         # ── SMA20 방향성 ──
         sma20_rising = False
@@ -751,11 +757,20 @@ def _unified_score(
             signals.append({"type": "positive", "label": "바닥 반등 패턴 (Cup) 🏆",
                             "desc": f"주가가 그릇 모양으로 바닥을 찍고 올라오고 있어요.{extra}"})
 
-        # B: 골든크로스
-        elif has_golden_cross and s20 <= s60:
-            trend_pts += 12
-            signals.append({"type": "positive", "label": "반등 전환 신호 (골든크로스) ✨",
-                            "desc": "단기 평균이 중기 평균을 올라섰어요. 전환 시작!"})
+        # B: 골든크로스 (신선도 감쇠 — 돌파 직후일수록 가산점 큼)
+        elif has_golden_cross:
+            if days_since_golden_cross is not None and days_since_golden_cross <= 1:
+                trend_pts += 12
+                signals.append({"type": "positive", "label": "반등 전환 신호 (골든크로스) ✨",
+                                "desc": "단기 평균이 중기 평균을 올라섰어요. 전환 시작!"})
+            elif days_since_golden_cross is not None and days_since_golden_cross <= 3:
+                trend_pts += 8
+                signals.append({"type": "positive", "label": "골든크로스 진행 중 ✨",
+                                "desc": "며칠 전 단기선이 중기선을 돌파했어요. 상승 흐름 확인."})
+            else:
+                trend_pts += 3
+                signals.append({"type": "neutral", "label": "골든크로스 이후 진행",
+                                "desc": "돌파 후 시간 경과. 초기 신호는 이미 반영된 상태."})
 
         # C: 역배열이지만 단기 반등 중
         elif cur > s5 > s20 and sma20_rising and (s60 > s20 or s120 > s20):
@@ -831,17 +846,28 @@ def _unified_score(
     # ❷ 모멘텀 CATEGORY  (cap ±12)
     # ══════════════════════════════════════════════
 
-    # ── 이격도 ──
+    # ── 이격도 (평균회귀 경향 반영 — baseline 백테스트에서 고점 추격 문제 확인됨) ──
+    disparity = 0.0
     if not sma20.dropna().empty:
         s20_val = float(sma20.iloc[-1])
         if s20_val > 0:
             disparity = (cur - s20_val) / s20_val * 100
-            if disparity < -5:
+            # 과매도 (반등 유력)
+            if disparity < -10:
+                momentum_pts += 7
+                signals.append({"type": "positive", "label": f"평균보다 아주 싸요 ({disparity:.1f}%)",
+                                "desc": "20일 평균 대비 10% 이상 하락. 과매도 반등 가능성 큼."})
+            elif disparity < -5:
                 momentum_pts += 5
                 signals.append({"type": "positive", "label": f"평균보다 많이 싸요 ({disparity:.1f}%)",
                                 "desc": "20일 평균보다 많이 내려와 있어요. 반등 가능성."})
             elif disparity < -2:
                 momentum_pts += 2
+            # 과매수 (조정 유력) — 고점 추격 방지 강화
+            elif disparity > 10:
+                momentum_pts -= 8
+                signals.append({"type": "negative", "label": f"평균보다 아주 비싸요 (+{disparity:.1f}%)",
+                                "desc": "20일 평균 대비 10%+ 상승. 단기 조정 가능성 큼. 추격 매수 위험."})
             elif disparity > 7:
                 momentum_pts -= 5
                 signals.append({"type": "negative", "label": f"평균보다 많이 비싸요 (+{disparity:.1f}%)",
@@ -854,6 +880,7 @@ def _unified_score(
     rsi_divergence = False
     if rsi_series is not None and not rsi_series.dropna().empty:
         rsi_val = float(rsi_series.iloc[-1])
+        # RSI 구간 세분화 — 고점 과열 구간 감점 강화 (baseline: 75+ 종목 실제 하락)
         if rsi_val <= 25:
             momentum_pts += 8
             signals.append({"type": "positive", "label": f"많이 떨어진 상태 (RSI {rsi_val:.0f})",
@@ -862,10 +889,18 @@ def _unified_score(
             momentum_pts += 4
             signals.append({"type": "positive", "label": f"좀 싼 편 (RSI {rsi_val:.0f})",
                             "desc": "주가가 낮은 편이에요. 매수 기회일 수 있어요."})
+        elif rsi_val >= 80:
+            momentum_pts -= 10
+            signals.append({"type": "negative", "label": f"극단적 과매수 (RSI {rsi_val:.0f}) ⚠️",
+                            "desc": "단기간 급등 상태. 조정 임박 가능성 매우 높음."})
         elif rsi_val >= 75:
             momentum_pts -= 8
             signals.append({"type": "negative", "label": f"많이 오른 상태 (RSI {rsi_val:.0f})",
                             "desc": "단기간에 많이 올라서 내려갈 수 있어요."})
+        elif rsi_val >= 70:
+            momentum_pts -= 6
+            signals.append({"type": "negative", "label": f"비싼 편 (RSI {rsi_val:.0f})",
+                            "desc": "상단 영역 진입. 추격 매수 비권장."})
         elif rsi_val >= 65:
             momentum_pts -= 4
             signals.append({"type": "negative", "label": f"좀 비싼 편 (RSI {rsi_val:.0f})",
@@ -873,6 +908,18 @@ def _unified_score(
         else:
             signals.append({"type": "neutral", "label": f"보통 상태 (RSI {rsi_val:.0f})",
                             "desc": "지금은 특별히 싸지도, 비싸지도 않아요."})
+
+        # ── 과매수 복합 경고 (RSI + 이격도 동시 극단) ──
+        # 두 지표가 독립적으로 이미 감점했지만, 복합 조건에선 추가 페널티 부여.
+        # 고점 추격매수 함정 방지 — baseline에서 가장 문제였던 구간.
+        if rsi_val >= 70 and disparity > 10:
+            momentum_pts -= 4  # 복합 가산 페널티
+            signals.append({"type": "negative", "label": "고점 추격 위험 🚨",
+                            "desc": "RSI·이격도 모두 극단 과매수. 단기 조정 가능성 매우 큼."})
+        elif rsi_val <= 30 and disparity < -10:
+            momentum_pts += 3  # 복합 반등 보너스
+            signals.append({"type": "positive", "label": "과매도 복합 반등 신호 🎯",
+                            "desc": "RSI·이격도 모두 극단 과매도. 반등 확률 높음."})
 
         # ── RSI 다이버전스: find_peaks 기반 실제 저점/고점 쌍 비교 ──
         if len(close) >= 40 and len(rsi_series.dropna()) >= 40:
