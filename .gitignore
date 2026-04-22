@@ -9,3 +9,6 @@ frontend/dist/
 
 .DS_Store
 Thumbs.db
+
+# 백테스트 결과 (로컬 실행 산출물 — repo 오염 방지)
+backend/backtest_results/
