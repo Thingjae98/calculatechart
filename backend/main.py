@@ -2853,9 +2853,9 @@ async def predict_stock(
         negative_count = sum(1 for s in signals if s["type"] == "negative")
 
         if final_score >= 75:
-            outlook_short = "강한 상승 추세"
-            outlook_mid   = "추세 지속 또는 단기 조정"
-            summary = "강한 상승 추세예요. 단, 이미 많이 오른 경우 단기 조정 가능성도 있으니 분할 매수를 권장해요."
+            outlook_short = "강한 추세 (단기 주의)"
+            outlook_mid   = "중기 상승 기대, 단기 조정 가능"
+            summary = "여러 지표가 강한 상승을 가리키고 있어요. 단, 단기(1~2주)엔 이미 많이 오른 상태일 수 있으니 분할 매수·눌림목 진입을 권장해요."
         elif final_score >= 60:
             outlook_short = "매수 고려"
             outlook_mid   = "반등 가능성 높음"
