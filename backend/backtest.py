@@ -45,6 +45,7 @@ except Exception:
 from main import (
     _clean_ohlcv,
     _detect_box_range,
+    _fetch_index_sync,
     _fetch_ohlcv_sync,
     _generate_predicted_candles,
     _standardize_ohlcv,
@@ -112,7 +113,30 @@ def load_history(ticker: str, history_days: int) -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────
 # 단일 시점 예측
 # ─────────────────────────────────────────────────────────────────────
-def predict_at(df_slice: pd.DataFrame, horizons: list[int]) -> tuple[int, dict[int, float]] | None:
+def load_market_history(history_days: int) -> pd.DataFrame:
+    """KOSPI 지수 전체 히스토리를 한 번 로드 (모든 종목/anchor에 재사용)."""
+    end_d = date.today()
+    start_d = end_d - timedelta(days=history_days)
+    df = _fetch_index_sync(_yyyymmdd(start_d), _yyyymmdd(end_d), "KS11")
+    if df is None or df.empty:
+        print("⚠ KOSPI 지수 로드 실패 — 베타 차감 없이 진행")
+        return pd.DataFrame()
+    return df
+
+
+def slice_market_to(market_df: pd.DataFrame, anchor_date: str) -> pd.DataFrame:
+    """anchor_date 이전(포함) 데이터만 반환 — walk-forward 누수 방지."""
+    if market_df is None or market_df.empty:
+        return pd.DataFrame()
+    try:
+        anchor_ts = pd.Timestamp(anchor_date)
+        return market_df.loc[market_df.index <= anchor_ts]
+    except Exception:
+        return pd.DataFrame()
+
+
+def predict_at(df_slice: pd.DataFrame, horizons: list[int],
+               market_slice: pd.DataFrame | None = None) -> tuple[int, dict[int, float]] | None:
     """
     df_slice 의 마지막 날 기준으로 예측 수행.
     return: (score, {horizon: predicted_close})
@@ -145,6 +169,7 @@ def predict_at(df_slice: pd.DataFrame, horizons: list[int]) -> tuple[int, dict[i
             resistance_lines=resistance,
             box_range=box,
             n_days=max_h,
+            market_df=market_slice if market_slice is not None and not market_slice.empty else None,
         )
     except Exception:
         return None
@@ -171,6 +196,7 @@ def backtest_ticker(
     horizons: list[int],
     step: int,
     history_days: int,
+    market_df: pd.DataFrame | None = None,
 ) -> tuple[list[PredictionRecord], TickerSummary]:
     summary = TickerSummary(ticker=ticker)
     records: list[PredictionRecord] = []
@@ -199,7 +225,8 @@ def backtest_ticker(
         start_close = float(df_slice["close"].iloc[-1])
         anchor_date = str(df_slice["time"].iloc[-1])[:10]
 
-        result = predict_at(df_slice, horizons)
+        market_slice = slice_market_to(market_df, anchor_date) if market_df is not None else None
+        result = predict_at(df_slice, horizons, market_slice=market_slice)
         if result is None:
             continue
         score, preds = result
@@ -366,6 +393,14 @@ def main() -> int:
     all_records: list[PredictionRecord] = []
     all_summaries: list[TickerSummary] = []
 
+    # KOSPI 지수 한 번 로드 (베타 차감용 — 모든 종목에서 재사용)
+    print("▶ KOSPI 지수 로드 중...")
+    market_df = load_market_history(history_days=args.history_days)
+    if market_df.empty:
+        print("  ⚠ 베타 차감 없이 진행\n")
+    else:
+        print(f"  ✔ KOSPI {len(market_df)}봉 로드\n")
+
     for i, ticker in enumerate(tickers, start=1):
         try:
             records, summary = backtest_ticker(
@@ -374,6 +409,7 @@ def main() -> int:
                 horizons=horizons,
                 step=args.step,
                 history_days=args.history_days,
+                market_df=market_df,
             )
             all_records.extend(records)
             all_summaries.append(summary)

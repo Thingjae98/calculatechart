@@ -1477,6 +1477,7 @@ def _generate_predicted_candles(
     resistance_lines: list[float],
     box_range: dict | None = None,
     n_days: int = 7,
+    market_df: pd.DataFrame | None = None,
 ) -> list[dict]:
     """
     기술적 분석 기반 주가 예측 시뮬레이션 (v3 — 몬테카를로 앙상블).
@@ -1597,6 +1598,66 @@ def _generate_predicted_candles(
 
     weighted_mom = (ret_5d * mom_weights["5d"] + ret_10d * mom_weights["10d"]
                     + ret_20d * mom_weights["20d"] + ret_60d * mom_weights["60d"])
+
+    # ── 시장(KOSPI) 베타 차감: 알파 성분만 모멘텀으로 사용 ──
+    # 고득점 종목이 시장 상승장 베타에 업혀 과대 예측되는 문제 해결
+    beta = 1.0
+    market_weighted_mom = 0.0
+    alpha_mom = weighted_mom  # 기본: market_df 미제공 시 원본 유지
+    if market_df is not None and not market_df.empty and "close" in market_df.columns:
+        try:
+            # 날짜 기반 정렬 (df의 'time' ↔ market_df의 DatetimeIndex)
+            stock_dates = pd.to_datetime(df["time"]).dt.strftime("%Y-%m-%d").tolist()
+            mkt_close_by_date: dict[str, float] = {}
+            for ts, row in market_df.iterrows():
+                date_str = pd.Timestamp(ts).strftime("%Y-%m-%d")
+                cv = float(row["close"])
+                if np.isfinite(cv) and cv > 0:
+                    mkt_close_by_date[date_str] = cv
+
+            # 공통 날짜의 종가 시계열 구성
+            aligned_stock = []
+            aligned_mkt = []
+            for i, ds in enumerate(stock_dates):
+                if ds in mkt_close_by_date:
+                    sv = float(close.iloc[i]) if np.isfinite(close.iloc[i]) else None
+                    if sv is not None and sv > 0:
+                        aligned_stock.append(sv)
+                        aligned_mkt.append(mkt_close_by_date[ds])
+
+            if len(aligned_stock) >= 60:
+                sa = np.array(aligned_stock[-60:], dtype=float)
+                ma = np.array(aligned_mkt[-60:], dtype=float)
+                stock_lr = np.diff(np.log(sa))
+                mkt_lr = np.diff(np.log(ma))
+                mask = np.isfinite(stock_lr) & np.isfinite(mkt_lr)
+                stock_lr = stock_lr[mask]
+                mkt_lr = mkt_lr[mask]
+                if len(stock_lr) >= 20 and float(np.var(mkt_lr)) > 1e-10:
+                    cov_sm = float(np.cov(stock_lr, mkt_lr, ddof=1)[0, 1])
+                    var_m = float(np.var(mkt_lr, ddof=1))
+                    beta = cov_sm / var_m if var_m > 0 else 1.0
+                    beta = max(0.3, min(2.0, beta))  # 극단 방지
+
+            # 시장의 동일 가중 모멘텀 계산
+            if len(aligned_mkt) >= 61:
+                ma_full = np.array(aligned_mkt, dtype=float)
+                def mkt_ret(period: int) -> float:
+                    if len(ma_full) >= period + 1 and ma_full[-(period + 1)] > 0:
+                        return float(ma_full[-1] / ma_full[-(period + 1)] - 1.0)
+                    return 0.0
+                m5, m10, m20, m60 = mkt_ret(5), mkt_ret(10), mkt_ret(20), mkt_ret(60)
+                market_weighted_mom = (m5 * mom_weights["5d"] + m10 * mom_weights["10d"]
+                                       + m20 * mom_weights["20d"] + m60 * mom_weights["60d"])
+
+            # 알파 모멘텀: 시장 베타 효과 제거
+            alpha_mom = weighted_mom - beta * market_weighted_mom
+        except Exception as exc:
+            logger.warning("시장 베타 차감 실패: %s", exc)
+            alpha_mom = weighted_mom
+
+    # 이후 drift 계산은 알파 모멘텀 사용 (시장 대비 초과 수익 관점)
+    weighted_mom = alpha_mom
 
     # ══════════════════════════════════════════════════════════════════
     # ❹ 변동성 분석 (v2 유지 + 레버리지 효과 추가)
@@ -2127,6 +2188,47 @@ def _fetch_ohlcv_sync(start: str, end: str, ticker: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def _fetch_index_sync(start: str, end: str, index_code: str = "KS11") -> pd.DataFrame:
+    """시장 지수(KOSPI 'KS11', KOSDAQ 'KQ11') OHLCV 조회.
+
+    반환: DatetimeIndex + ['open','high','low','close','volume'] (소문자 컬럼)
+    실패 시 빈 DataFrame.
+
+    사용 목적: 개별 종목 예측에서 시장 베타 성분을 차감하여 알파만 추정.
+    """
+    start_iso = f"{start[:4]}-{start[4:6]}-{start[6:8]}"
+    end_iso = f"{end[:4]}-{end[4:6]}-{end[6:8]}"
+    try:
+        df = fdr.DataReader(index_code, start_iso, end_iso)
+        if df is None or df.empty:
+            return pd.DataFrame()
+        rename_map = {}
+        for col in df.columns:
+            cl = col.lower()
+            if cl == "open": rename_map[col] = "open"
+            elif cl == "high": rename_map[col] = "high"
+            elif cl == "low": rename_map[col] = "low"
+            elif cl == "close": rename_map[col] = "close"
+            elif cl == "volume": rename_map[col] = "volume"
+        df = df.rename(columns=rename_map)
+        keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
+        if "close" not in keep:
+            return pd.DataFrame()
+        return df[keep]
+    except Exception as exc:
+        logger.warning("지수 조회 실패 (%s): %s", index_code, exc)
+        return pd.DataFrame()
+
+
+async def _fetch_index(start: str, end: str, index_code: str = "KS11") -> pd.DataFrame:
+    """시장 지수 조회 비동기 래퍼"""
+    try:
+        return await _run_with_timeout(_fetch_index_sync, start, end, index_code, timeout=PYKRX_TIMEOUT_SEC)
+    except Exception as exc:
+        logger.warning("지수 비동기 조회 실패 (%s): %s", index_code, exc)
+        return pd.DataFrame()
+
+
 async def _fetch_ohlcv(start: str, end: str, ticker: str) -> pd.DataFrame:
     """OHLCV 조회 비동기 래퍼 (fdr→pykrx 폴백 포함)"""
     total_days = (date(int(end[:4]), int(end[4:6]), int(end[6:8]))
@@ -2451,7 +2553,10 @@ async def predict_stock(
         start_str = _yyyymmdd(start_d)
         end_str = _yyyymmdd(end_d)
 
-        raw = await _fetch_ohlcv(start_str, end_str, ticker)
+        raw, market_raw = await asyncio.gather(
+            _fetch_ohlcv(start_str, end_str, ticker),
+            _fetch_index(start_str, end_str, "KS11"),
+        )
         if raw.empty:
             return {"error": "데이터 없음"}
 
@@ -2611,6 +2716,7 @@ async def predict_stock(
             resistance_lines=resistance_lines,
             box_range=box_range,
             n_days=n_days,
+            market_df=market_raw if market_raw is not None and not market_raw.empty else None,
         )
 
         return {
