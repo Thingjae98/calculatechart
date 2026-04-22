@@ -493,6 +493,7 @@ def _unified_score(
     support_lines: list[float] | None = None,
     resistance_lines: list[float] | None = None,
     box_range: dict | None = None,
+    investor_flow: dict | None = None,
 ) -> tuple[int, list[dict], dict]:
     """
     통합 기술적 점수 계산 — 카테고리별 캡으로 이중 계산 방지.
@@ -639,6 +640,7 @@ def _unified_score(
     volatility_pts = 0  # cap ±10
     volume_pts    = 0   # cap ±15
     structure_pts = 0   # cap  ±8
+    position_pts  = 0   # cap ±15 → 52주 가격 위치 + 최근 20일 성과 + 외인·기관 수급
 
     has_cup_pattern      = False
     cup_vol_confirmed    = False
@@ -1418,6 +1420,111 @@ def _unified_score(
                 signals.append({"type": "negative", "label": "비석형 도지 🪦",
                                 "desc": "위로 올랐다가 밀렸어요. 천장 신호일 수 있어요."})
 
+    # ══════════════════════════════════════════════
+    # ❻ 위치 CATEGORY  (cap ±15)
+    # 52주 가격 위치 + 최근 20일 성과 + 외인·기관 수급
+    # ══════════════════════════════════════════════
+
+    # ── 52주 가격 위치 (바닥 vs 고점 구간) ──
+    # 근거: baseline 백테스트 — 고득점(75+) 종목이 평균 -0.92% 손실.
+    # 이미 연중 고점 근처 = 저항 강함 = 단기 평균회귀 대상. 연저점 = 반등 기회.
+    if len(close) >= 60:
+        week_count = min(252, len(close))
+        high_52w = float(high.tail(week_count).max())
+        low_52w  = float(low.tail(week_count).min())
+        if high_52w > low_52w > 0:
+            range_52w   = high_52w - low_52w
+            position_52w = (cur - low_52w) / range_52w  # 0=연저, 1=연고
+
+            if position_52w >= 0.90:
+                position_pts -= 12
+                signals.append({"type": "negative", "label": "연중 최고점 근처 🚧",
+                                "desc": "최근 1년 최고가 근처예요. 저항이 강해 단기 조정 가능성 높음."})
+            elif position_52w >= 0.75:
+                position_pts -= 6
+                signals.append({"type": "negative", "label": "연고점 구간 ⚠️",
+                                "desc": "연중 높은 구간에 있어요. 추격 매수는 신중하게."})
+            elif position_52w >= 0.60:
+                position_pts -= 2
+            elif position_52w <= 0.10:
+                position_pts += 12
+                signals.append({"type": "positive", "label": "연중 최저점 근처 💎",
+                                "desc": "최근 1년 최저가 근처예요. 저점 매수 기회."})
+            elif position_52w <= 0.25:
+                position_pts += 6
+                signals.append({"type": "positive", "label": "저가권 위치",
+                                "desc": "연중 낮은 구간에 있어요. 상대적 저평가 구간."})
+            elif position_52w <= 0.40:
+                position_pts += 2
+
+    # ── 최근 20일 수익률 (단기 과열·과매도 판단) ──
+    # 고점 추격(단기 급등) = 평균회귀 위험, 급락 = 반등 가능성
+    if len(close) >= 21:
+        close_20d_ago = float(close.iloc[-21])
+        if close_20d_ago > 0:
+            ret_20d = (cur - close_20d_ago) / close_20d_ago * 100
+            if ret_20d >= 25:
+                position_pts -= 12
+                signals.append({"type": "negative", "label": f"20일 급등 +{ret_20d:.0f}% 🚨",
+                                "desc": "20일 만에 25% 이상 올랐어요. 단기 과열로 조정 가능성 높음."})
+            elif ret_20d >= 15:
+                position_pts -= 7
+                signals.append({"type": "negative", "label": f"20일 강상승 +{ret_20d:.0f}%",
+                                "desc": "20일 동안 많이 올랐어요. 추격 매수는 신중히."})
+            elif ret_20d >= 10:
+                position_pts -= 3
+            elif ret_20d <= -20:
+                position_pts += 10
+                signals.append({"type": "positive", "label": f"20일 급락 {ret_20d:.0f}% 🔍",
+                                "desc": "20일 만에 20% 이상 내렸어요. 반등 가능성 탐색 구간."})
+            elif ret_20d <= -12:
+                position_pts += 5
+                signals.append({"type": "positive", "label": f"20일 하락 {ret_20d:.0f}%",
+                                "desc": "20일 동안 많이 내렸어요. 반등 가능성 있어요."})
+            elif ret_20d <= -7:
+                position_pts += 2
+
+    # ── 외인·기관 수급 (제공된 경우) ──
+    # 한국 주식에서 외국인·기관 수급은 중단기 방향성 핵심 지표
+    if investor_flow:
+        f5   = float(investor_flow.get("foreign_5d",  0.0))
+        i5   = float(investor_flow.get("inst_5d",     0.0))
+        f20  = float(investor_flow.get("foreign_20d", 0.0))
+        i20  = float(investor_flow.get("inst_20d",    0.0))
+        combined_5d  = f5 + i5
+        combined_20d = f20 + i20
+
+        if combined_5d >= 500:
+            position_pts += 10
+            signals.append({"type": "positive", "label": f"외인·기관 대량 매집 🏦",
+                            "desc": f"5일간 외국인·기관 {int(combined_5d):,}억원 순매수. 강한 유입 신호."})
+        elif combined_5d >= 100:
+            position_pts += 5
+            signals.append({"type": "positive", "label": "외인·기관 순매수 🏦",
+                            "desc": f"5일간 외국인·기관 {int(combined_5d):,}억원 순매수."})
+        elif combined_5d >= 20:
+            position_pts += 2
+        elif combined_5d <= -500:
+            position_pts -= 10
+            signals.append({"type": "negative", "label": "외인·기관 대량 매도 🏦",
+                            "desc": f"5일간 외국인·기관 {int(abs(combined_5d)):,}억원 순매도. 주의."})
+        elif combined_5d <= -100:
+            position_pts -= 5
+            signals.append({"type": "negative", "label": "외인·기관 순매도",
+                            "desc": f"5일간 외국인·기관이 매도 중이에요."})
+        elif combined_5d <= -20:
+            position_pts -= 2
+
+        # 20일 누적 방향성 추가 확인 (단기보다 약한 가중)
+        if combined_20d >= 1000 and combined_5d >= 0:
+            position_pts += 3
+            signals.append({"type": "positive", "label": "20일 외인·기관 지속 매수",
+                            "desc": f"20일 누적 {int(combined_20d):,}억원 순매수. 중기 유입 지속."})
+        elif combined_20d <= -1000 and combined_5d <= 0:
+            position_pts -= 3
+            signals.append({"type": "negative", "label": "20일 외인·기관 지속 매도",
+                            "desc": f"20일 누적 {int(abs(combined_20d)):,}억원 순매도. 중기 유출 지속."})
+
     # ════════════════════════════════════════════════════
     # 카테고리 캡 적용
     # ════════════════════════════════════════════════════
@@ -1426,6 +1533,7 @@ def _unified_score(
     volatility_pts = max(-10, min(10, volatility_pts))
     volume_pts     = max(-15, min(15, volume_pts))
     structure_pts  = max( -8, min( 8, structure_pts))
+    position_pts   = max(-15, min(15, position_pts))
 
     # ── 반등 시너지: 바닥 신호가 복수 동시 발생 시 보너스 ──
     reversal_flags = [has_cup_pattern, accumulation_detected, obv_divergence,
@@ -1450,7 +1558,7 @@ def _unified_score(
                         "desc": "역배열이지만 바닥에서 매수세가 들어오고 있어 하락 위험이 줄어요."})
 
     # ── 최종 점수 ──
-    score = 50 + trend_pts + momentum_pts + volatility_pts + volume_pts + structure_pts + synergy_bonus
+    score = 50 + trend_pts + momentum_pts + volatility_pts + volume_pts + structure_pts + position_pts + synergy_bonus
     final_score = max(0, min(100, score))
 
     internals = {
@@ -1730,15 +1838,17 @@ def _generate_predicted_candles(
     # ❺ 기대 수익률(drift) — v3: ADX+멀티TF+거래량+캔들패턴 종합
     # ══════════════════════════════════════════════════════════════════
 
-    # score drift (v2와 동일 — 장기 감쇠)
+    # score drift (상향 편향 보정 — baseline 백테스트: 75+ 점수 → 7일 실제 수익률 -0.92%)
+    # 0.003 → 0.0012로 60% 축소: 점수 의존도 줄이고 시장 중립 유지
     score_decay_factor = max(0.33, 1.0 - (n_days - 7) / 35)
-    score_drift = (prediction_score - 50) / 50 * 0.003 * score_decay_factor
+    score_drift = (prediction_score - 50) / 50 * 0.0012 * score_decay_factor
 
     # 모멘텀 drift — 멀티타임프레임 + 레짐 반영
+    # 0.15→0.08, 0.08→0.05: 추세 과신 방지 (상향 편향 원인 중 하나)
     if is_strong_trend:
-        momentum_drift = weighted_mom * 0.15 * trend_direction
+        momentum_drift = weighted_mom * 0.08 * trend_direction
     elif is_trending:
-        momentum_drift = weighted_mom * 0.08
+        momentum_drift = weighted_mom * 0.05
     elif is_mean_reverting:
         momentum_drift = -weighted_mom * 0.10
     else:
@@ -2229,6 +2339,58 @@ async def _fetch_index(start: str, end: str, index_code: str = "KS11") -> pd.Dat
         return pd.DataFrame()
 
 
+def _fetch_investor_flow_sync(ticker: str, start: str, end: str) -> dict:
+    """외인·기관 순매수 데이터 조회 (pykrx).
+
+    반환: {"foreign_5d": 억원, "foreign_20d": 억원, "inst_5d": 억원, "inst_20d": 억원}
+    실패 시 빈 dict — 호출부에서 investor_flow=None처럼 처리됨.
+
+    사용 목적: 한국 주식 시장에서 외국인·기관 수급은 단중기 방향성에 가장 강한 영향.
+    """
+    try:
+        df = stock.get_market_trading_value_by_date(start, end, ticker)
+        if df is None or df.empty:
+            return {}
+
+        foreign_col: str | None = None
+        inst_col: str | None = None
+        for col in df.columns:
+            if "외국인" in col or "외인" in col:
+                foreign_col = col
+            if "기관" in col and "합계" in col:
+                inst_col = col
+        if not foreign_col and not inst_col:
+            # 컬럼명이 다를 수 있으므로 두 번째 시도
+            for col in df.columns:
+                if "기관" in col:
+                    inst_col = inst_col or col
+
+        result: dict = {}
+        if foreign_col and not df[foreign_col].dropna().empty:
+            f = pd.to_numeric(df[foreign_col], errors="coerce").fillna(0)
+            result["foreign_5d"]  = float(f.tail(5).sum())  / 1e8
+            result["foreign_20d"] = float(f.tail(20).sum()) / 1e8
+        if inst_col and not df[inst_col].dropna().empty:
+            i = pd.to_numeric(df[inst_col], errors="coerce").fillna(0)
+            result["inst_5d"]  = float(i.tail(5).sum())  / 1e8
+            result["inst_20d"] = float(i.tail(20).sum()) / 1e8
+        return result
+    except Exception as exc:
+        logger.warning("외인·기관 수급 조회 실패 (%s): %s", ticker, exc)
+        return {}
+
+
+async def _fetch_investor_flow(ticker: str, start: str, end: str) -> dict:
+    """외인·기관 수급 조회 비동기 래퍼"""
+    try:
+        return await _run_with_timeout(
+            _fetch_investor_flow_sync, ticker, start, end, timeout=PYKRX_TIMEOUT_SEC
+        )
+    except Exception as exc:
+        logger.warning("외인·기관 수급 비동기 조회 실패 (%s): %s", ticker, exc)
+        return {}
+
+
 async def _fetch_ohlcv(start: str, end: str, ticker: str) -> pd.DataFrame:
     """OHLCV 조회 비동기 래퍼 (fdr→pykrx 폴백 포함)"""
     total_days = (date(int(end[:4]), int(end[4:6]), int(end[6:8]))
@@ -2393,7 +2555,10 @@ async def get_stock_data(
             start = _yyyymmdd(start_d)
             end = _yyyymmdd(end_d)
 
-            raw = await _fetch_ohlcv(start, end, ticker)
+            raw, investor_flow = await asyncio.gather(
+                _fetch_ohlcv(start, end, ticker),
+                _fetch_investor_flow(ticker, start, end),
+            )
             if raw.empty:
                 return {"error": "데이터가 없거나 종목 코드/이름이 잘못되었습니다."}
 
@@ -2408,7 +2573,10 @@ async def get_stock_data(
             vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
             support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
             box_range = _detect_box_range(df)
-            score, _signals, _internals = _unified_score(df, support_lines, resistance_lines, box_range)
+            score, _signals, _internals = _unified_score(
+                df, support_lines, resistance_lines, box_range,
+                investor_flow=investor_flow or None,
+            )
             fibonacci = _compute_fibonacci_levels(df)
             ichimoku  = _compute_ichimoku(df)
 
@@ -2553,9 +2721,10 @@ async def predict_stock(
         start_str = _yyyymmdd(start_d)
         end_str = _yyyymmdd(end_d)
 
-        raw, market_raw = await asyncio.gather(
+        raw, market_raw, investor_flow = await asyncio.gather(
             _fetch_ohlcv(start_str, end_str, ticker),
             _fetch_index(start_str, end_str, "KS11"),
+            _fetch_investor_flow(ticker, start_str, end_str),
         )
         if raw.empty:
             return {"error": "데이터 없음"}
@@ -2573,7 +2742,10 @@ async def predict_stock(
         vol_values = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
         support_lines, resistance_lines = _support_resistance(close_values, high_values, low_values, vol_values, max_lines=1)
         box_range = _detect_box_range(df)
-        final_score, signals, internals = _unified_score(df, support_lines, resistance_lines, box_range)
+        final_score, signals, internals = _unified_score(
+            df, support_lines, resistance_lines, box_range,
+            investor_flow=investor_flow or None,
+        )
 
         # internals에서 지표값 추출
         atr_val = internals["atr14"]
@@ -2681,9 +2853,9 @@ async def predict_stock(
         negative_count = sum(1 for s in signals if s["type"] == "negative")
 
         if final_score >= 75:
-            outlook_short = "강한 매수 신호"
-            outlook_mid   = "상승 추세 기대"
-            summary = "여러 지표가 동시에 상승을 가리키고 있어요. 적극적인 매수를 고려해볼 만합니다."
+            outlook_short = "강한 상승 추세"
+            outlook_mid   = "추세 지속 또는 단기 조정"
+            summary = "강한 상승 추세예요. 단, 이미 많이 오른 경우 단기 조정 가능성도 있으니 분할 매수를 권장해요."
         elif final_score >= 60:
             outlook_short = "매수 고려"
             outlook_mid   = "반등 가능성 높음"

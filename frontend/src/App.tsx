@@ -14,7 +14,7 @@ function scoreColor(score: number) {
 }
 
 function scoreLabel(score: number) {
-  if (score >= 75) return '강한 매수'
+  if (score >= 75) return '강한 상승 추세'
   if (score >= 60) return '매수 고려'
   if (score >= 50) return '관망'
   if (score >= 35) return '약세 주의'
