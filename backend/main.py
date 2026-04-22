@@ -657,28 +657,70 @@ def _unified_score(
         s60 = float(sma60.iloc[-1])
         s120 = float(sma120.iloc[-1])
 
-        # ── Cup(그릇) 패턴 + 거래량 프로파일 ──
-        if len(close) >= 60:
-            recent_60 = close.tail(60).values
-            recent_60_vol = vol.tail(60).values
-            trough_idx_60 = int(np.argmin(recent_60))
-            trough_price = float(recent_60[trough_idx_60])
+        # ── Cup(그릇) 패턴 탐지 — 슬라이딩 윈도우 (30~80봉) ──
+        # 단일 60봉 고정 → 경계 근처 패턴 누락. 여러 윈도우 크기를 훑어서
+        # 가장 품질 높은 Cup 후보를 채택.
+        if len(close) >= 30:
+            best_cup_score = -1.0  # 0 이상이면 패턴 성립
+            window_sizes = [30, 40, 50, 60, 70, 80]
+            close_vals_full = close.values
+            vol_vals_full = vol.values
+            n_total = len(close_vals_full)
 
-            if 10 <= trough_idx_60 <= 50 and trough_price > 0:
-                left_high = float(np.max(recent_60[:trough_idx_60])) if trough_idx_60 > 0 else cur
+            for w in window_sizes:
+                if w > n_total:
+                    continue
+                recent_w = close_vals_full[-w:]
+                recent_w_vol = vol_vals_full[-w:]
+                trough_idx = int(np.argmin(recent_w))
+                trough_price = float(recent_w[trough_idx])
+
+                # 바닥이 윈도우 중앙 근처여야 '그릇' 모양 — 양끝 15% 제외
+                margin = max(3, int(w * 0.15))
+                if not (margin <= trough_idx <= w - margin):
+                    continue
+                if trough_price <= 0:
+                    continue
+
+                left_high = float(np.max(recent_w[:trough_idx]))
+                right_high = float(np.max(recent_w[trough_idx + 1:]))
+                if left_high <= trough_price:
+                    continue
+
+                cur_w = float(recent_w[-1])
                 decline_depth = (left_high - trough_price) / left_high
-                recovery_ratio = (cur - trough_price) / (left_high - trough_price) if left_high > trough_price else 0
+                recovery_ratio = (cur_w - trough_price) / (left_high - trough_price)
 
-                # 바닥 부근 거래량 vs 회복 구간 거래량
-                base_start = max(0, trough_idx_60 - 3)
-                base_end = min(len(recent_60_vol), trough_idx_60 + 3)
-                vol_at_base = float(np.mean(recent_60_vol[base_start:base_end])) if base_end > base_start else 0
-                recovery_start = max(trough_idx_60, len(recent_60_vol) - 10)
-                vol_at_recovery = float(np.mean(recent_60_vol[recovery_start:])) if recovery_start < len(recent_60_vol) else 0
-                cup_vol_confirmed = vol_at_base > 0 and vol_at_recovery > vol_at_base * 1.2
+                # 최소 품질 기준
+                if decline_depth < 0.05 or recovery_ratio < 0.5:
+                    continue
 
-                if decline_depth >= 0.05 and recovery_ratio >= 0.5:
+                # 거래량 프로파일
+                base_start = max(0, trough_idx - 3)
+                base_end = min(len(recent_w_vol), trough_idx + 3)
+                vol_at_base = float(np.mean(recent_w_vol[base_start:base_end])) if base_end > base_start else 0.0
+                recovery_start = max(trough_idx, len(recent_w_vol) - 10)
+                vol_at_recovery = float(np.mean(recent_w_vol[recovery_start:])) if recovery_start < len(recent_w_vol) else 0.0
+                vol_confirmed = vol_at_base > 0 and vol_at_recovery > vol_at_base * 1.2
+
+                # 대칭성 — 양끝 고점이 비슷할수록 이상적 그릇 모양
+                if right_high > 0 and left_high > 0:
+                    symmetry = 1.0 - abs(left_high - right_high) / max(left_high, right_high)
+                else:
+                    symmetry = 0.0
+
+                # 품질 점수: 회복률(40) + 깊이(20) + 대칭성(25) + 거래량확인(15)
+                quality = (
+                    recovery_ratio * 0.40
+                    + min(decline_depth / 0.30, 1.0) * 0.20  # 30% 하락이면 만점
+                    + symmetry * 0.25
+                    + (0.15 if vol_confirmed else 0.0)
+                )
+
+                if quality > best_cup_score:
+                    best_cup_score = quality
                     has_cup_pattern = True
+                    cup_vol_confirmed = vol_confirmed
 
         # ── 골든크로스: SMA20이 SMA60을 아래→위로 돌파 ──
         if len(sma20.dropna()) >= 5 and len(sma60.dropna()) >= 5:
