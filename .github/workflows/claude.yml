@@ -22,8 +22,6 @@ jobs:
       (github.event_name == 'issues' && contains(github.event.issue.body, '@claude')) ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude'))
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     permissions:
       contents: write        # 코드 수정 및 커밋
       pull-requests: write   # PR 생성 및 코멘트
@@ -31,13 +29,8 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
       - name: Run Claude Code Action
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
