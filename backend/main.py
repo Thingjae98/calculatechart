@@ -1,3 +1,4 @@
+# OAuth 인증 테스트 성공
 import asyncio
 import logging
 import os
