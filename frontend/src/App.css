@@ -5,6 +5,59 @@
   min-height: 100svh;
 }
 
+/* ── 스티키 내비게이션 (앱 최적화) ─────────────────────────────── */
+.topNav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.topNavBrand {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+.topNavTabs {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.topNavTab {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.topNavTab:hover { border-color: var(--accent-border); }
+.topNavTabActive {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent-border);
+}
+
+/* 차트 섹션 구분선 */
+.chartSection {
+  border-top: 8px solid var(--code-bg);
+  scroll-margin-top: 56px;
+}
+
 /* ── 헤더 ─────────────────────────────────────────────────────── */
 .header {
   padding: 16px 20px 14px;

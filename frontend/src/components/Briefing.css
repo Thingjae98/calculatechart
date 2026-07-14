@@ -1,0 +1,208 @@
+/* 데일리 마켓 브리핑 스타일 — 모바일 우선, 앱 최적화 */
+
+.briefing {
+  --up: #22c55e;
+  --down: #ef4444;
+  --flat: #f59e0b;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 16px 8px;
+}
+
+.toneUp { color: var(--up); }
+.toneDown { color: var(--down); }
+.toneFlat { color: var(--flat); }
+
+/* ── 헤더 ── */
+.bHeader { margin-top: 4px; }
+.bTitleRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bKicker {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: -0.2px;
+}
+.bDate {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-h);
+  letter-spacing: -0.6px;
+}
+
+.bSampleBanner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #b45309;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+@media (prefers-color-scheme: dark) {
+  .bSampleBanner { color: #fbbf24; }
+}
+
+/* ── 카드 ── */
+.bCard {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.bCardTitle {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-h);
+  margin: 0 0 12px;
+  letter-spacing: -0.3px;
+}
+.bCardSub {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-left: 6px;
+}
+
+.bBlock { margin-bottom: 14px; }
+.bBlock:last-child { margin-bottom: 0; }
+.bBlockLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bInlinePct { font-size: 14px; font-weight: 700; }
+.bInlineVal { font-size: 13px; color: var(--text-h); font-weight: 600; margin-left: auto; }
+
+/* ── 지수/종목 행 ── */
+.bQuoteRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 15px;
+}
+.bQuoteRow:last-child { border-bottom: none; }
+.bQuoteName { color: var(--text-h); font-weight: 500; }
+.bQuoteRight { display: flex; align-items: baseline; gap: 10px; }
+.bQuoteValue { color: var(--text-h); font-weight: 600; font-variant-numeric: tabular-nums; }
+.bQuotePct { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+
+/* ── 뉴스 ── */
+.bNewsList, .bBulletList, .bCheckList {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.bNewsList li, .bBulletList li, .bCheckList li {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-h);
+}
+.bCheckList li::marker { content: '✓ '; color: var(--accent); font-weight: 700; }
+
+/* ── 방향성 배지 ── */
+.bDirection {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px;
+  font-weight: 800;
+  padding: 8px 16px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  letter-spacing: -0.4px;
+}
+.bDirection.toneUp { background: rgba(34, 197, 94, 0.12); }
+.bDirection.toneDown { background: rgba(239, 68, 68, 0.12); }
+.bDirection.toneFlat { background: rgba(245, 158, 11, 0.12); }
+.bDirectionIcon { font-size: 18px; }
+
+.bLevels {
+  margin-top: 12px;
+  background: var(--code-bg);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-h);
+}
+.bLevelsLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+
+/* ── 반도체 투톱 ── */
+.bSemiGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .bSemiGrid { grid-template-columns: 1fr 1fr; }
+}
+.bSemiCard {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--social-bg);
+}
+.bSemiHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.bSemiName { font-size: 16px; font-weight: 700; color: var(--text-h); }
+.bSemiTicker { font-size: 12px; color: var(--text); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.bDirBadge {
+  font-size: 14px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+.bDirBadge.toneUp { background: rgba(34, 197, 94, 0.15); }
+.bDirBadge.toneDown { background: rgba(239, 68, 68, 0.15); }
+.bDirBadge.toneFlat { background: rgba(245, 158, 11, 0.15); }
+.bSemiField { margin-top: 8px; }
+.bSemiLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.bSemiField p { font-size: 14px; line-height: 1.55; color: var(--text-h); }
+
+/* ── 상태/푸터 ── */
+.bLoading, .bError {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--text);
+  font-size: 15px;
+}
+.bError { color: var(--down); }
+.bErrorSub { color: var(--text); font-size: 13px; margin-top: 8px; }
+.bFooter {
+  font-size: 12px;
+  color: var(--text);
+  text-align: center;
+  padding: 8px 0 4px;
+  line-height: 1.5;
+}

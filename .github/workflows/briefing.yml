@@ -1,0 +1,53 @@
+name: Daily Market Briefing
+
+# 매일 아침(KST) 개장 전 브리핑 자동 생성 → JSON 커밋 → Vercel 자동배포
+on:
+  schedule:
+    # 22:00 UTC = 익일 07:00 KST. 일~목(UTC) = 월~금(KST) 아침.
+    - cron: '0 22 * * 0-4'
+  workflow_dispatch: {}  # 수동 실행(테스트)용
+
+# 동시 실행 방지
+concurrency:
+  group: daily-briefing
+  cancel-in-progress: false
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # 브리핑 JSON 커밋/푸시
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Compute KST date
+        id: date
+        run: echo "target=$(date -u -d '+9 hours' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate briefing with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            `.github/briefing/prompt.md` 파일을 읽고 그 지침을 정확히 따라라.
+            TARGET_DATE(KST 기준 브리핑 대상일) = ${{ steps.date.outputs.target }}
+            결과 JSON을 frontend/public/briefings/${{ steps.date.outputs.target }}.json 과
+            frontend/public/briefings/latest.json 두 파일로 저장하라. git 커밋은 하지 마라.
+          claude_args: '--allowedTools "Read,Write,Edit,WebSearch,WebFetch,Bash(node:*)"'
+
+      - name: Commit & push briefing
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/briefings/*.json
+          if git diff --cached --quiet; then
+            echo "브리핑 변경 없음 — 스킵"
+            exit 0
+          fi
+          git commit -m "chore(briefing): ${{ steps.date.outputs.target }} 데일리 마켓 브리핑 자동 생성"
+          git push

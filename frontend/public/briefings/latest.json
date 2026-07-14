@@ -1,0 +1,63 @@
+{
+  "date": "2026-07-14",
+  "generated_at": "2026-07-14T07:00:00+09:00",
+  "is_sample": true,
+  "global": {
+    "indices": [
+      { "name": "S&P 500", "value": "6,280.12", "change_pct": 0.42 },
+      { "name": "Nasdaq", "value": "20,640.33", "change_pct": 0.78 },
+      { "name": "Dow", "value": "44,210.55", "change_pct": -0.12 }
+    ],
+    "sox": {
+      "value": "5,720.40",
+      "change_pct": 1.35,
+      "components": [
+        { "name": "엔비디아 (NVDA)", "value": "168.20", "change_pct": 2.10 },
+        { "name": "TSMC (TSM)", "value": "245.60", "change_pct": 1.05 },
+        { "name": "브로드컴 (AVGO)", "value": "295.30", "change_pct": 0.88 }
+      ]
+    },
+    "macro": [
+      { "name": "원/달러 환율", "value": "1,378.5원", "change": "+3.2원", "tone": "down" },
+      { "name": "미 국채 10년물", "value": "4.38%", "change": "+2bp", "tone": "down" },
+      { "name": "WTI 유가", "value": "$71.4", "change": "+0.9%", "tone": "flat" }
+    ],
+    "headlines": [
+      "필라델피아 반도체 지수 1.35% 상승 — AI 인프라 투자 확대 기대 지속",
+      "미 6월 CPI 발표(현지시간 오늘) 앞두고 관망세, 금리 인하 기대 유지",
+      "엔비디아, 차세대 GPU 공급 확대 소식에 2%대 강세"
+    ]
+  },
+  "domestic": {
+    "direction": "상승 우세",
+    "tone": "up",
+    "rationale": [
+      "간밤 SOX 강세 + 엔비디아 상승으로 반도체 투톱 중심 외국인 순매수 유입 기대",
+      "다만 원/달러 환율이 1,378원대로 상승(원화 약세)해 외국인 수급의 상단은 제한될 수 있음"
+    ],
+    "levels": "코스피 2,650선 지지 확인 여부, 2,700선 저항 돌파 시 반도체 주도 상승 탄력"
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "상승",
+      "tone": "up",
+      "momentum": "SOX 강세와 HBM 수요 기대가 우호적. 간밤 외국인 필라델피아 반도체 강세 연동 매수 유입 가능성",
+      "strategy": "보유 유지. 신규 진입은 장 초반 외국인 순매수 확인 후 분할 접근 권장"
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "상승",
+      "tone": "up",
+      "momentum": "HBM 대장주로 엔비디아 강세 직접 수혜. 다만 최근 단기 급등 구간이라 변동성 유의",
+      "strategy": "보유 지속하되 과열 시 일부 실현 고려. 눌림목에서 재진입 대응"
+    }
+  },
+  "checklist": [
+    "장 초반(09:00~09:30) 외국인 반도체 순매수 유입 여부",
+    "원/달러 환율 1,380원 상향 돌파 여부 — 돌파 시 외국인 매도 압력",
+    "현지시간 오늘 밤 미 6월 CPI 발표 — 예상치 상회 시 금리 부담"
+  ]
+}
