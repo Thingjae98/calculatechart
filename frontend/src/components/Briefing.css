@@ -151,6 +151,8 @@
 .bDirection.toneFlat { background: var(--flat-bg); }
 .bDirectionIcon { font-size: 18px; }
 
+.bDomesticNews { margin-top: 12px; margin-bottom: 0; }
+
 .bLevels {
   margin-top: 12px;
   background: var(--code-bg);

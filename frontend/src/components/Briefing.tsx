@@ -157,6 +157,14 @@ export function Briefing() {
         <ul className="bBulletList">
           {data.domestic.rationale.map((r, i) => <li key={i}>{r}</li>)}
         </ul>
+        {data.domestic.headlines && data.domestic.headlines.length > 0 && (
+          <div className="bBlock bDomesticNews">
+            <div className="bBlockLabel">국내 핵심 뉴스</div>
+            <ul className="bNewsList">
+              {data.domestic.headlines.map((h, i) => <li key={i}>{h}</li>)}
+            </ul>
+          </div>
+        )}
         <div className="bLevels">
           <span className="bLevelsLabel">지지·저항 / 트리거</span>
           {data.domestic.levels}

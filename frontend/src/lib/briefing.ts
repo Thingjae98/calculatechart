@@ -66,6 +66,8 @@ export interface DailyBriefing {
     tone: Tone
     /** 근거 및 시나리오 (수급/매크로) */
     rationale: string[]
+    /** 국내 핵심 뉴스 2~3개 (거시경제·정책·대기업·반도체/IT) — optional */
+    headlines?: string[]
     /** 지지선/저항선·트리거 한 줄 */
     levels: string
   }
