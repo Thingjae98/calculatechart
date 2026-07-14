@@ -19,9 +19,14 @@ jobs:
     steps:
       - name: Ping backend /api/ping
         run: |
-          # 백엔드 URL: 레포 변수 BACKEND_URL 우선, 없으면 render.yaml 서비스명 기본값
+          # 백엔드 URL: 레포 변수 BACKEND_URL 우선, 없으면 실제 서비스 URL 기본값
           URL="${{ vars.BACKEND_URL }}"
-          URL="${URL:-https://calculatechart-api.onrender.com}"
+          if [ -n "$URL" ]; then
+            echo "레포 변수 vars.BACKEND_URL 사용: $URL"
+          else
+            echo "레포 변수 비어있음 → 기본값 사용 (Variables 탭에 BACKEND_URL이 있는지 확인)"
+          fi
+          URL="${URL:-https://calculatechart.onrender.com}"
           URL="${URL%/}"
           echo "Warming: $URL/api/ping"
           for i in 1 2 3; do

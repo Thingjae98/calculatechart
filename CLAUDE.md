@@ -66,7 +66,7 @@
 ### 백엔드 워밍업 (keepwarm.yml)
 - Render 무료 플랜은 15분 무활동 시 슬립 → 콜드스타트 30~60초.
 - `keepwarm.yml`이 **장 시간대(07:00~16:00 KST) 10분마다** `/api/ping` 호출로 웜 유지.
-- 백엔드 URL은 레포 변수 `BACKEND_URL`(없으면 `calculatechart-api.onrender.com` 기본값). 실제 Render URL이 다르면 Settings → Secrets and variables → Actions → Variables에 `BACKEND_URL` 지정.
+- 백엔드 URL 기본값 `https://calculatechart.onrender.com`. 바꾸려면 Settings → Secrets and variables → Actions → **Variables 탭**(Secrets 아님)에 `BACKEND_URL` 지정.
 - GitHub cron은 best-effort(수 분 지연 가능) — 더 확실히 하려면 UptimeRobot/cron-job.org 같은 외부 핑 서비스 병행.
 
 ### 브리핑 데이터 흐름 (정적 JSON + 스케줄 생성)
