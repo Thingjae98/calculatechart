@@ -39,3 +39,4 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          show_full_output: true   # 진단용: 실제 에러 메시지 노출 (원인 확인 후 제거)
