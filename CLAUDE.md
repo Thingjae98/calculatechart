@@ -63,9 +63,15 @@
 2. **하단 — 차트 분석**(`ChartAnalysis.tsx`): 기존 검색/차트/예측/추천 전체
 - 상단 스티키 내비(`.topNav`)의 `📅 오늘의 브리핑` / `📈 차트 분석` 버튼으로 스크롤 이동. IntersectionObserver로 활성 표시 갱신.
 
+### 백엔드 워밍업 (keepwarm.yml)
+- Render 무료 플랜은 15분 무활동 시 슬립 → 콜드스타트 30~60초.
+- `keepwarm.yml`이 **장 시간대(07:00~16:00 KST) 10분마다** `/api/ping` 호출로 웜 유지.
+- 백엔드 URL은 레포 변수 `BACKEND_URL`(없으면 `calculatechart-api.onrender.com` 기본값). 실제 Render URL이 다르면 Settings → Secrets and variables → Actions → Variables에 `BACKEND_URL` 지정.
+- GitHub cron은 best-effort(수 분 지연 가능) — 더 확실히 하려면 UptimeRobot/cron-job.org 같은 외부 핑 서비스 병행.
+
 ### 브리핑 데이터 흐름 (정적 JSON + 스케줄 생성)
 ```
-매일 07:00 KST (22:00 UTC, briefing.yml cron)
+매일 07:30 KST (22:30 UTC, briefing.yml cron) — 8시 전 준비 완료 목표
   → claude-code-action 이 .github/briefing/prompt.md 지침대로 웹 조사·분석
   → frontend/public/briefings/<date>.json + latest.json 저장
   → workflow가 git commit & push

@@ -1,0 +1,35 @@
+name: Keep Backend Warm
+
+# Render 무료 플랜은 15분 무활동 시 슬립 → 첫 접속 30~60초 콜드스타트.
+# 장 시간대(KST)에 10분마다 /api/ping 을 호출해 깨어있게 유지한다.
+on:
+  schedule:
+    # UTC 기준. KST = UTC+9.
+    - cron: '*/10 22-23 * * 0-4'  # 07:00~08:59 KST (월~금 아침, 개장 전 웜업)
+    - cron: '*/10 0-6 * * 1-5'    # 09:00~15:59 KST (월~금 장중)
+  workflow_dispatch: {}          # 수동 웜업
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend /api/ping
+        run: |
+          # 백엔드 URL: 레포 변수 BACKEND_URL 우선, 없으면 render.yaml 서비스명 기본값
+          URL="${{ vars.BACKEND_URL }}"
+          URL="${URL:-https://calculatechart-api.onrender.com}"
+          URL="${URL%/}"
+          echo "Warming: $URL/api/ping"
+          for i in 1 2 3; do
+            code=$(curl -sS -m 90 -o /dev/null -w '%{http_code}' "$URL/api/ping" || echo "000")
+            echo "attempt $i -> HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "::warning::warmup ping 실패 (백엔드가 콜드/다운 상태일 수 있음)"
+          # 핑 실패로 알림 스팸이 나지 않도록 워크플로우 자체는 성공 처리
+          exit 0

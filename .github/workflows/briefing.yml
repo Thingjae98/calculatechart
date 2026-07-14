@@ -3,8 +3,9 @@ name: Daily Market Briefing
 # 매일 아침(KST) 개장 전 브리핑 자동 생성 → JSON 커밋 → Vercel 자동배포
 on:
   schedule:
-    # 22:00 UTC = 익일 07:00 KST. 일~목(UTC) = 월~금(KST) 아침.
-    - cron: '0 22 * * 0-4'
+    # 22:30 UTC = 익일 07:30 KST 발화. 생성(웹조사)+커밋+Vercel 배포에 수 분 걸리므로
+    # 아침 8시 전에 브리핑이 준비 완료되도록 07:30에 시작. 일~목(UTC) = 월~금(KST) 아침.
+    - cron: '30 22 * * 0-4'
   workflow_dispatch: {}  # 수동 실행(테스트)용
 
 # 동시 실행 방지
