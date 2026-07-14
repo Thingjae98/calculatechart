@@ -2,6 +2,7 @@ import './App.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Briefing } from './components/Briefing'
 import { ChartAnalysis } from './components/ChartAnalysis'
+import { InstallButton } from './components/InstallButton'
 
 type Section = 'briefing' | 'chart'
 
@@ -38,19 +39,20 @@ function App() {
     <div className="app">
       {/* ── 스티키 내비게이션 (앱 최적화: 빠른 이동) ── */}
       <nav className="topNav">
-        <span className="topNavBrand">모닝 마켓</span>
+        <span className="topNavBrand">명재가족</span>
         <div className="topNavTabs">
+          <InstallButton />
           <button
             className={`topNavTab ${active === 'briefing' ? 'topNavTabActive' : ''}`}
             onClick={() => scrollTo('briefing')}
           >
-            📅 오늘의 브리핑
+            📅 브리핑
           </button>
           <button
             className={`topNavTab ${active === 'chart' ? 'topNavTabActive' : ''}`}
             onClick={() => scrollTo('chart')}
           >
-            📈 차트 분석
+            📈 차트
           </button>
         </div>
       </nav>

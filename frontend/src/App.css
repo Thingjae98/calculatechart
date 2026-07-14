@@ -26,11 +26,80 @@
   color: var(--accent);
   letter-spacing: -0.3px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .topNavTabs {
   display: flex;
   gap: 6px;
   margin-left: auto;
+  min-width: 0;
+  overflow-x: auto;            /* 좁은 화면에서 clip 대신 가로 스크롤 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.topNavTabs::-webkit-scrollbar { display: none; }
+.topNavTabs > * { flex-shrink: 0; }
+
+/* PWA 설치 버튼 (미설치 브라우저에서만 InstallButton이 렌더) */
+.installBtn {
+  appearance: none;
+  border: none;
+  background: #7c3aed;         /* 흰 글자 대비 5.7:1 — 라이트/다크 공통 */
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+  transition: transform 0.12s ease-out;
+}
+.installBtn:active { transform: scale(0.96); }
+
+/* iOS 설치 안내 모달 */
+.installHint {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 16px 16px;
+  background: rgba(0, 0, 0, 0.5);
+}
+.installHintCard {
+  background: var(--bg);
+  color: var(--text-h);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  max-width: 340px;
+  box-shadow: var(--shadow);
+}
+.installHintTitle { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.installHintCard p { font-size: 14px; line-height: 1.65; color: var(--text-h); }
+.installHintClose {
+  margin-top: 14px;
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .installBtn { transition: none; }
+  .installBtn:active { transform: none; }
 }
 .topNavTab {
   appearance: none;
