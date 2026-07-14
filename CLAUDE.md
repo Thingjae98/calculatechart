@@ -38,12 +38,54 @@
 | 파일 | 역할 |
 |------|------|
 | `backend/main.py` | 전체 백엔드 (엔드포인트, 기술적 분석, 예측 캔들, 추천) |
-| `frontend/src/App.tsx` | 메인 UI (검색 자동완성, 예측 버튼, 추천 목록) |
+| `frontend/src/App.tsx` | **셸**: 스티키 내비 + 브리핑(상단) + 차트분석(하단) 레이아웃 |
+| `frontend/src/components/Briefing.tsx` | **데일리 마켓 브리핑** UI (4개 섹션, 정적 JSON 렌더) |
+| `frontend/src/components/ChartAnalysis.tsx` | 차트 분석 화면 전체 (구 App.tsx 본문 — 검색/차트/예측/추천) |
 | `frontend/src/components/CandleChart.tsx` | 차트 컴포넌트 (캔들+거래량+이평선+예측+스크롤 로드) |
-| `frontend/src/lib/api.ts` | API 클라이언트 + TypeScript 타입 정의 |
-| `frontend/src/App.css` | 전체 UI 스타일 (드롭다운, 카드, 차트) |
+| `frontend/src/lib/api.ts` | 주가 API 클라이언트 + TypeScript 타입 정의 |
+| `frontend/src/lib/briefing.ts` | 브리핑 타입 + `/briefings/latest.json` 로더 |
+| `frontend/public/briefings/latest.json` | 앱이 읽는 최신 브리핑 (매일 아침 Action이 교체) |
+| `frontend/src/components/Briefing.css` | 브리핑 스타일 |
+| `frontend/src/App.css` | 차트 UI 스타일 + 스티키 내비(`.topNav`) |
 | `frontend/src/index.css` | CSS 변수 (다크모드/라이트모드 테마) |
-| `frontend/index.html` | HTML 엔트리 (탭 타이틀: "차트 분석") |
+| `frontend/index.html` | HTML 엔트리 (타이틀 "모닝 마켓 브리핑" + PWA 메타) |
+| `frontend/vite.config.ts` | Vite + **vite-plugin-pwa**(매니페스트/SW) 설정 |
+| `.github/briefing/prompt.md` | 브리핑 생성 지침 + JSON 스키마 (Action이 읽음) |
+| `.github/workflows/briefing.yml` | **스케줄 워크플로우** (매일 07:00 KST 브리핑 자동 생성) |
+
+---
+
+## 🌅 모닝 마켓 브리핑 + PWA (2026-07 추가)
+
+### 화면 구조
+앱은 이제 **셸(App.tsx) + 두 화면**으로 구성:
+1. **상단(메인) — 데일리 마켓 브리핑**(`Briefing.tsx`): 야간 해외증시·SOX·환율·뉴스 + 국내 방향성 + 반도체 투톱 전략 + 체크리스트
+2. **하단 — 차트 분석**(`ChartAnalysis.tsx`): 기존 검색/차트/예측/추천 전체
+- 상단 스티키 내비(`.topNav`)의 `📅 오늘의 브리핑` / `📈 차트 분석` 버튼으로 스크롤 이동. IntersectionObserver로 활성 표시 갱신.
+
+### 브리핑 데이터 흐름 (정적 JSON + 스케줄 생성)
+```
+매일 07:00 KST (22:00 UTC, briefing.yml cron)
+  → claude-code-action 이 .github/briefing/prompt.md 지침대로 웹 조사·분석
+  → frontend/public/briefings/<date>.json + latest.json 저장
+  → workflow가 git commit & push
+  → Vercel 자동 배포
+  → 앱이 /briefings/latest.json fetch (SW NetworkFirst 캐시)
+```
+- 백엔드(FastAPI/pykrx)는 브리핑에 **관여하지 않음** — 순수 정적 파일.
+- `latest.json`의 `is_sample: true`면 UI에 경고 배너 표시(플레이스홀더 방지).
+- 스키마 변경 시 **세 곳을 함께 수정**: `lib/briefing.ts`(타입) · `Briefing.tsx`(렌더) · `.github/briefing/prompt.md`(생성 스키마).
+- 수동 생성/테스트: GitHub Actions에서 `Daily Market Briefing` 워크플로우 `Run workflow`(workflow_dispatch).
+- **필수 시크릿**: `CLAUDE_CODE_OAUTH_TOKEN` (기존 claude.yml과 공용).
+
+### PWA
+- `vite-plugin-pwa`(generateSW) + 자동 SW 등록(`registerType: 'autoUpdate'`).
+- 아이콘 소스: `frontend/public/pwa-source.svg` → `npx pwa-assets-generator --preset minimal-2023 public/pwa-source.svg`로 재생성(64/192/512/maskable/apple-touch/favicon).
+- 브리핑 JSON은 **NetworkFirst**(온라인 최신, 오프라인 캐시 폴백), `/api/*`는 캐시 안 함(항상 실시간).
+- iOS: 홈 화면 추가·오프라인·전체화면 O / 웹푸시는 제약. 안드로이드는 푸시까지 가능.
+- Vercel HTTPS 배포에서만 SW 동작(로컬은 `npm run build && npm run preview`로 확인, `devOptions.enabled: false`).
+
+---
 
 ## 개발 명령어
 

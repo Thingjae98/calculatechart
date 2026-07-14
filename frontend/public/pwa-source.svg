@@ -1,0 +1,28 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7c1fd6"/>
+      <stop offset="1" stop-color="#aa3bff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- 떠오르는 해 (아침) -->
+  <circle cx="256" cy="196" r="60" fill="#ffd43b"/>
+  <!-- 지평선 -->
+  <rect x="72" y="276" width="368" height="8" rx="4" fill="#ffffff" opacity="0.55"/>
+  <!-- 상승 캔들 3봉 -->
+  <g stroke-linecap="round">
+    <!-- 캔들1 -->
+    <rect x="126" y="322" width="44" height="70" rx="8" fill="#ffffff"/>
+    <line x1="148" y1="304" x2="148" y2="322" stroke="#ffffff" stroke-width="8"/>
+    <line x1="148" y1="392" x2="148" y2="410" stroke="#ffffff" stroke-width="8"/>
+    <!-- 캔들2 -->
+    <rect x="234" y="300" width="44" height="104" rx="8" fill="#ffffff"/>
+    <line x1="256" y1="282" x2="256" y2="300" stroke="#ffffff" stroke-width="8"/>
+    <line x1="256" y1="404" x2="256" y2="422" stroke="#ffffff" stroke-width="8"/>
+    <!-- 캔들3 -->
+    <rect x="342" y="316" width="44" height="88" rx="8" fill="#ffffff"/>
+    <line x1="364" y1="298" x2="364" y2="316" stroke="#ffffff" stroke-width="8"/>
+    <line x1="364" y1="404" x2="364" y2="422" stroke="#ffffff" stroke-width="8"/>
+  </g>
+</svg>
