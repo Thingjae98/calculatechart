@@ -23,7 +23,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0   # rebase 재시도용 전체 히스토리
 
       - name: Compute KST date
         id: date
@@ -51,4 +51,15 @@ jobs:
             exit 0
           fi
           git commit -m "chore(briefing): ${{ steps.date.outputs.target }} 데일리 마켓 브리핑 자동 생성"
-          git push
+          # 생성에 수 분 걸리는 동안 다른 커밋이 main에 들어와 non-fast-forward가 날 수 있음.
+          # 브리핑 JSON은 다른 파일과 겹치지 않으므로 rebase 후 재시도하면 항상 깔끔히 반영된다.
+          for i in 1 2 3 4 5; do
+            if git push origin main; then
+              echo "push 성공"; exit 0
+            fi
+            echo "push 거부 — origin/main 리베이스 후 재시도 ($i/5)"
+            git pull --rebase --autostash origin main || true
+            sleep 5
+          done
+          echo "::error::브리핑 push 5회 재시도 실패"
+          exit 1
