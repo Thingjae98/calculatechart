@@ -36,16 +36,21 @@
   appearance: none;
   border: 1px solid var(--border);
   background: var(--bg);
-  color: var(--text);
+  color: var(--text-h);            /* 라벨 대비 강화 (읽기 쉽게) */
   font-size: 13px;
   font-weight: 600;
-  padding: 7px 12px;
+  min-height: 44px;                /* 터치 타겟 최소 44px */
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
+  touch-action: manipulation;      /* 탭 지연 제거 */
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .topNavTab:hover { border-color: var(--accent-border); }
+.topNavTab:active { transform: scale(0.97); }
 .topNavTabActive {
   background: var(--accent-bg);
   color: var(--accent);
@@ -55,7 +60,12 @@
 /* 차트 섹션 구분선 */
 .chartSection {
   border-top: 8px solid var(--code-bg);
-  scroll-margin-top: 56px;
+  scroll-margin-top: 64px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topNavTab { transition: none; }
+  .topNavTab:active { transform: none; }
 }
 
 /* ── 헤더 ─────────────────────────────────────────────────────── */

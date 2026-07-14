@@ -12,7 +12,8 @@ function App() {
 
   const scrollTo = useCallback((s: Section) => {
     const el = s === 'briefing' ? briefingRef.current : chartRef.current
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    el?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
     setActive(s)
   }, [])
 

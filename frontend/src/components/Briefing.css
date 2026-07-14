@@ -1,13 +1,31 @@
 /* 데일리 마켓 브리핑 스타일 — 모바일 우선, 앱 최적화 */
 
 .briefing {
-  --up: #22c55e;
-  --down: #ef4444;
-  --flat: #f59e0b;
+  /* 텍스트용 톤 — 라이트 모드: 흰 배경에서 4.5:1 이상 확보하려면 진한 계열 필요
+     (#22c55e 같은 밝은 초록을 글자색으로 쓰면 대비 미달로 흐릿하게 보임) */
+  --up: #15803d;      /* green-700 */
+  --down: #c81e1e;    /* red-700  */
+  --flat: #b45309;    /* amber-700 */
+  --up-bg: rgba(21, 128, 61, 0.10);
+  --down-bg: rgba(200, 30, 30, 0.10);
+  --flat-bg: rgba(180, 83, 9, 0.10);
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding: 16px 16px 8px;
+  scroll-margin-top: 64px;   /* 스티키 내비가 상단을 가리지 않도록 */
+}
+
+@media (prefers-color-scheme: dark) {
+  .briefing {
+    /* 다크 모드: 어두운 배경이므로 밝은 톤이 오히려 잘 읽힘 */
+    --up: #4ade80;    /* green-400 */
+    --down: #f87171;  /* red-400  */
+    --flat: #fbbf24;  /* amber-400 */
+    --up-bg: rgba(74, 222, 128, 0.14);
+    --down-bg: rgba(248, 113, 113, 0.14);
+    --flat-bg: rgba(251, 191, 36, 0.14);
+  }
 }
 
 .toneUp { color: var(--up); }
@@ -89,15 +107,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 0;
+  gap: 12px;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 15px;
 }
 .bQuoteRow:last-child { border-bottom: none; }
-.bQuoteName { color: var(--text-h); font-weight: 500; }
-.bQuoteRight { display: flex; align-items: baseline; gap: 10px; }
+.bQuoteName { color: var(--text-h); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bQuoteRight { display: flex; align-items: baseline; gap: 10px; flex-shrink: 0; }
 .bQuoteValue { color: var(--text-h); font-weight: 600; font-variant-numeric: tabular-nums; }
-.bQuotePct { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; }
+.bQuotePct { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 60px; text-align: right; }
+.bInlineVal { font-variant-numeric: tabular-nums; }
 
 /* ── 뉴스 ── */
 .bNewsList, .bBulletList, .bCheckList {
@@ -126,9 +146,9 @@
   margin-bottom: 12px;
   letter-spacing: -0.4px;
 }
-.bDirection.toneUp { background: rgba(34, 197, 94, 0.12); }
-.bDirection.toneDown { background: rgba(239, 68, 68, 0.12); }
-.bDirection.toneFlat { background: rgba(245, 158, 11, 0.12); }
+.bDirection.toneUp { background: var(--up-bg); }
+.bDirection.toneDown { background: var(--down-bg); }
+.bDirection.toneFlat { background: var(--flat-bg); }
 .bDirectionIcon { font-size: 18px; }
 
 .bLevels {
@@ -177,9 +197,9 @@
   padding: 4px 12px;
   border-radius: 999px;
 }
-.bDirBadge.toneUp { background: rgba(34, 197, 94, 0.15); }
-.bDirBadge.toneDown { background: rgba(239, 68, 68, 0.15); }
-.bDirBadge.toneFlat { background: rgba(245, 158, 11, 0.15); }
+.bDirBadge.toneUp { background: var(--up-bg); }
+.bDirBadge.toneDown { background: var(--down-bg); }
+.bDirBadge.toneFlat { background: var(--flat-bg); }
 .bSemiField { margin-top: 8px; }
 .bSemiLabel {
   display: block;
