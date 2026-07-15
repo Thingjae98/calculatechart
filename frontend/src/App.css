@@ -119,6 +119,26 @@
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 .topNavTab:hover { border-color: var(--accent-border); }
+
+/* ── 밝기 토글 (시스템 → 밝게 → 어둡게 순환) ── */
+.themeToggle {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  /* 아이콘만 있어도 44px 터치 타겟 확보 */
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s;
+}
+.themeToggle:hover { border-color: var(--accent-border); }
+.themeToggle:active { background: var(--accent-bg); }
 .topNavTab:active { transform: scale(0.97); }
 .topNavTabActive {
   background: var(--accent-bg);
@@ -192,10 +212,8 @@
   border-color: var(--accent-border);
 }
 
-@media (prefers-color-scheme: dark) {
-  .searchInput {
-    background: rgba(255, 255, 255, 0.04);
-  }
+:root[data-theme='dark'] .searchInput {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* 자동완성 드롭다운 */
@@ -215,11 +233,9 @@
   overflow-y: auto;
 }
 
-@media (prefers-color-scheme: dark) {
-  .searchDropdown {
-    background: #1f2937;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  }
+:root[data-theme='dark'] .searchDropdown {
+  background: #1f2937;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .searchDropdownItem {
@@ -345,10 +361,8 @@
   background: rgba(0, 0, 0, 0.015);
 }
 
-@media (prefers-color-scheme: dark) {
-  .card {
-    background: rgba(255, 255, 255, 0.02);
-  }
+:root[data-theme='dark'] .card {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* ── 차트 카드 ────────────────────────────────────────────────── */

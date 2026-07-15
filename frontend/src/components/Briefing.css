@@ -16,16 +16,14 @@
   scroll-margin-top: 64px;   /* 스티키 내비가 상단을 가리지 않도록 */
 }
 
-@media (prefers-color-scheme: dark) {
-  .briefing {
-    /* 다크 모드: 어두운 배경이므로 밝은 톤이 오히려 잘 읽힘 */
-    --up: #4ade80;    /* green-400 */
-    --down: #f87171;  /* red-400  */
-    --flat: #fbbf24;  /* amber-400 */
-    --up-bg: rgba(74, 222, 128, 0.14);
-    --down-bg: rgba(248, 113, 113, 0.14);
-    --flat-bg: rgba(251, 191, 36, 0.14);
-  }
+:root[data-theme='dark'] .briefing {
+  /* 다크 모드: 어두운 배경이므로 밝은 톤이 오히려 잘 읽힘 */
+  --up: #4ade80;    /* green-400 */
+  --down: #f87171;  /* red-400  */
+  --flat: #fbbf24;  /* amber-400 */
+  --up-bg: rgba(74, 222, 128, 0.14);
+  --down-bg: rgba(248, 113, 113, 0.14);
+  --flat-bg: rgba(251, 191, 36, 0.14);
 }
 
 .toneUp { color: var(--up); }
@@ -61,9 +59,7 @@
   font-size: 13px;
   line-height: 1.5;
 }
-@media (prefers-color-scheme: dark) {
-  .bSampleBanner { color: #fbbf24; }
-}
+:root[data-theme='dark'] .bSampleBanner { color: #fbbf24; }
 
 /* ── 카드 ── */
 .bCard {
@@ -211,6 +207,111 @@
   margin-bottom: 2px;
 }
 .bSemiField p { font-size: 14px; line-height: 1.55; color: var(--text-h); }
+
+/* ── 시총 상위 (코스피/코스닥 탭) ── */
+.bTabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.bTab {
+  appearance: none;
+  flex: 1;
+  min-height: 44px;              /* 터치 타겟 */
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.bTab:hover { border-color: var(--accent-border); }
+/* 선택 상태는 색만이 아니라 테두리+굵기로도 구분 (색각 이상 대비) */
+.bTabActive {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text-h);
+  font-weight: 700;
+}
+
+.bTopGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 640px) {
+  .bTopGrid { grid-template-columns: 1fr 1fr; }
+}
+
+.bTopCard {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--social-bg);
+}
+.bTopHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bTopName {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-h);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bTopPct { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+.bTopPrice {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.bTopPriceNote { font-size: 11px; font-weight: 500; color: var(--text); margin-left: 4px; }
+
+.bTopLevels {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.bTopLevel {
+  flex: 1;
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.bTopLevelLabel { font-size: 10px; font-weight: 600; color: var(--text); }
+.bTopLevelVal {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+.bTopComment {
+  margin-top: 9px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-h);
+}
+.bTopEmpty {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+}
 
 /* ── 상태/푸터 ── */
 .bLoading, .bError {

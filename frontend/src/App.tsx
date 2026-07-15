@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Briefing } from './components/Briefing'
 import { ChartAnalysis } from './components/ChartAnalysis'
 import { InstallButton } from './components/InstallButton'
+import { ThemeToggle } from './components/ThemeToggle'
 
 type Section = 'briefing' | 'chart'
 
@@ -41,6 +42,7 @@ function App() {
       <nav className="topNav">
         <span className="topNavBrand">명재가족</span>
         <div className="topNavTabs">
+          <ThemeToggle />
           <InstallButton />
           <button
             className={`topNavTab ${active === 'briefing' ? 'topNavTabActive' : ''}`}

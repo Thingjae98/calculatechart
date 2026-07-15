@@ -10,6 +10,7 @@ import {
 } from 'lightweight-charts'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FibonacciLevels, IchimokuValues } from '../lib/api'
+import { currentTheme, subscribeTheme } from '../lib/theme'
 
 export interface Candle {
   time: string
@@ -156,8 +157,8 @@ export function CandleChart(props: {
     if (!el) return
 
     try {
-      const isDark =
-        window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+      // OS 설정이 아니라 확정된 테마(data-theme)를 본다 — 수동 토글도 따라가야 하므로.
+      const isDark = currentTheme() === 'dark'
       const chart = createChart(el, {
         autoSize: true,
         layout: {
@@ -249,6 +250,28 @@ export function CandleChart(props: {
         maSeriesRefs.current = []
       }
     }
+  }, [])
+
+  // ── 테마 전환 시 차트 색상 갱신 ────────────────────────────────
+  // 차트를 다시 만들지 않고 applyOptions로 색만 바꾼다. 초기화 이펙트를 재실행하면
+  // 캔들/거래량/이평선 시리즈를 채우는 이펙트들은 deps가 그대로라 다시 돌지 않아
+  // 빈 차트가 남는다.
+  useEffect(() => {
+    return subscribeTheme((theme) => {
+      const chart = chartRef.current
+      if (!chart) return
+      const isDark = theme === 'dark'
+      chart.applyOptions({
+        layout: {
+          background: { color: isDark ? '#111827' : '#ffffff' },
+          textColor: isDark ? '#e5e7eb' : '#374151',
+        },
+        grid: {
+          vertLines: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)' },
+          horzLines: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.06)' },
+        },
+      })
+    })
   }, [])
 
   // ── 캔들 + 거래량 + 이평선 데이터 업데이트 ──────────────────────

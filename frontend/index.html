@@ -12,6 +12,22 @@
     <meta name="apple-mobile-web-app-title" content="마켓브리핑" />
     <meta name="description" content="매일 아침 한국 증시 브리핑 + 반도체 투톱(삼성전자·SK하이닉스) 전략 + 차트 분석" />
     <title>모닝 마켓 브리핑</title>
+    <script>
+      // 첫 페인트 전에 테마를 확정한다 — React를 기다리면 다크 사용자에게 흰 화면이
+      // 번쩍인다. src/lib/theme.ts와 저장 키('cc-theme')·data-theme 규칙을 공유하므로
+      // 한쪽만 고치면 안 된다.
+      (function () {
+        try {
+          var m = localStorage.getItem('cc-theme')
+          if (m !== 'light' && m !== 'dark') {
+            m = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          document.documentElement.dataset.theme = m
+        } catch (e) {
+          document.documentElement.dataset.theme = 'light'
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
