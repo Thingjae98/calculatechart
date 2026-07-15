@@ -1,26 +1,65 @@
 {
   "date": "2026-07-15",
-  "generated_at": "2026-07-15T07:00:00+09:00",
+  "generated_at": "2026-07-15T12:57:16+09:00",
   "is_sample": false,
   "global": {
     "indices": [
-      { "name": "S&P 500", "value": "7,543.59", "change_pct": 0.38 },
-      { "name": "Nasdaq", "value": "26,107.01", "change_pct": 0.90 },
-      { "name": "Dow", "value": "52,508.27", "change_pct": 0.02 }
+      {
+        "name": "S&P 500",
+        "value": "7,543.59",
+        "change_pct": 0.38
+      },
+      {
+        "name": "Nasdaq",
+        "value": "26,107.01",
+        "change_pct": 0.9
+      },
+      {
+        "name": "Dow",
+        "value": "52,508.27",
+        "change_pct": 0.02
+      }
     ],
     "sox": {
       "value": "12,661.90",
       "change_pct": 2.54,
       "components": [
-        { "name": "엔비디아 (NVDA)", "value": "211.80", "change_pct": 4.06 },
-        { "name": "TSMC (TSM)", "value": "420.39", "change_pct": -0.28 },
-        { "name": "브로드컴 (AVGO)", "value": "389.11", "change_pct": 1.32 }
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "211.80",
+          "change_pct": 4.06
+        },
+        {
+          "name": "TSMC (TSM)",
+          "value": "420.39",
+          "change_pct": -0.28
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "389.11",
+          "change_pct": 1.32
+        }
       ]
     },
     "macro": [
-      { "name": "원/달러 환율", "value": "1,493.0원", "change": "-10.4원", "tone": "up" },
-      { "name": "미 국채 10년물", "value": "4.58%", "change": "-7bp", "tone": "up" },
-      { "name": "WTI 유가", "value": "$79.56", "change": "+2.0%", "tone": "flat" }
+      {
+        "name": "원/달러 환율",
+        "value": "1,493.0원",
+        "change": "-10.4원",
+        "tone": "up"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "4.58%",
+        "change": "-7bp",
+        "tone": "up"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "$79.56",
+        "change": "+2.0%",
+        "tone": "flat"
+      }
     ],
     "headlines": [
       "미 6월 소비자물가지수(CPI) 전년비 3.5% 상승, 시장 예상(3.8%)을 크게 밑돌며 인플레이션 우려 완화 — 7월 금리 인상 가능성도 후퇴",
@@ -59,6 +98,123 @@
       "momentum": "3%대 반등하며 191만원대를 회복했고, 미국 반도체주 강세와 견조한 HBM 수요가 긍정적. 다만 최근 며칠간 낙폭이 컸던 만큼 되돌림 변동성은 상존",
       "strategy": "단기 반등 흐름은 긍정적이나 신규 진입은 분할로 접근 권장. 기존 보유자는 급등락에 일희일비하지 말고 추세 안정 여부를 며칠 더 지켜볼 것"
     }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "402340",
+        "name": "SK스퀘어",
+        "market": "KOSPI",
+        "close": "1,427,000",
+        "change_pct": 19.92,
+        "support": "1,086,000",
+        "resistance": "2,189,000",
+        "score": 58,
+        "comment": "SK하이닉스 실적 전망이 크게 상향되며 투자가치 재평가 기대감이 커지고 있어요."
+      },
+      {
+        "ticker": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "close": "1,426,000",
+        "change_pct": 13.17,
+        "support": "1,163,000",
+        "resistance": "2,417,000",
+        "score": 73,
+        "comment": "AI 서버·전장부품 매출이 늘며 실적 개선 기대감이 이어지고 있어요."
+      },
+      {
+        "ticker": "005380",
+        "name": "현대차",
+        "market": "KOSPI",
+        "close": "437,500",
+        "change_pct": 3.06,
+        "support": "403,250",
+        "resistance": "631,000",
+        "score": 62,
+        "comment": "이달 말 2분기 실적 발표를 앞두고 관세 이슈와 신차 기대감이 엇갈리고 있어요."
+      },
+      {
+        "ticker": "373220",
+        "name": "LG에너지솔루션",
+        "market": "KOSPI",
+        "close": "334,500",
+        "change_pct": 3.88,
+        "support": "323,000",
+        "resistance": "359,000",
+        "score": 63,
+        "comment": "배터리 업황 회복 기대와 단기 급등 후 차익실현 매물이 함께 나오고 있어요."
+      },
+      {
+        "ticker": "032830",
+        "name": "삼성생명",
+        "market": "KOSPI",
+        "close": "341,250",
+        "change_pct": 7.65,
+        "support": "301,000",
+        "resistance": "516,500",
+        "score": 68,
+        "comment": "삼성전자 지분가치와 연동되며 최근 한 달간 꾸준히 오름세를 보였어요."
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "196170",
+        "name": "알테오젠",
+        "market": "KOSDAQ",
+        "close": "279,500",
+        "change_pct": 0,
+        "support": "253,000",
+        "resistance": "397,500",
+        "score": 60,
+        "comment": "최근 성장주·바이오 업종 매도세로 코스닥 하락을 이끌며 조정받고 있어요."
+      },
+      {
+        "ticker": "247540",
+        "name": "에코프로비엠",
+        "market": "KOSDAQ",
+        "close": "121,400",
+        "change_pct": 7.82,
+        "support": "109,500",
+        "resistance": "142,000",
+        "score": 65,
+        "comment": "1조2000억원 규모 유상증자 발표로 주주가치 희석 우려가 커지며 연저점을 찍었어요."
+      },
+      {
+        "ticker": "086520",
+        "name": "에코프로",
+        "market": "KOSDAQ",
+        "close": "85,650",
+        "change_pct": 8.28,
+        "support": "74,100",
+        "resistance": "102,400",
+        "score": 65,
+        "comment": "이차전지 업황 부진이 계속되며 계열사와 함께 연저점을 다시 썼어요."
+      },
+      {
+        "ticker": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "close": "214,000",
+        "change_pct": 11.11,
+        "support": "175,000",
+        "resistance": "255,989",
+        "score": 60,
+        "comment": "실적 둔화와 밸류에이션 부담으로 최근 투자심리가 다소 위축됐어요."
+      },
+      {
+        "ticker": "277810",
+        "name": "레인보우로보틱스",
+        "market": "KOSDAQ",
+        "close": "427,500",
+        "change_pct": 6.74,
+        "support": "357,000",
+        "resistance": "509,000",
+        "score": 65,
+        "comment": "로봇 산업 성장 기대감 속에 변동성 큰 흐름을 이어가고 있어요."
+      }
+    ],
+    "as_of": "2026-07-15"
   },
   "checklist": [
     "오늘 밤 ASML 2분기 실적 발표 — 반도체 장비 수요 신호로 국내 반도체주에 영향 가능",
