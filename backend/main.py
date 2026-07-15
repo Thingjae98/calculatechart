@@ -130,7 +130,13 @@ def _load_listing() -> pd.DataFrame:
                 out.columns = ["ticker", "name"]
                 out["ticker"] = out["ticker"].astype(str).str.zfill(6)
                 out["name"] = out["name"].astype(str)
-                result = out.dropna().drop_duplicates(subset=["ticker"])
+                # 시장 구분·시총·거래대금도 보존 (있을 때만) — top-caps 랭킹과 추천 필터가 쓴다.
+                # pykrx의 get_market_cap_by_ticker는 KRX API 변경으로 1.2.7에서 죽었기 때문에
+                # (2026-05경, 1.2.8이 로그인 체계를 추가한 이유) 이 컬럼들이 유일한 시총 소스다.
+                for src, dst in (("Market", "market"), ("Marcap", "marcap"), ("Amount", "amount")):
+                    if src in listing.columns:
+                        out[dst] = listing[src].values
+                result = out.dropna(subset=["ticker", "name"]).drop_duplicates(subset=["ticker"])
                 logger.info("종목 리스트 로드 완료 (fdr): %d종목", len(result))
     except Exception as e:
         logger.warning("fdr.StockListing 실패: %s", e)
@@ -2656,19 +2662,19 @@ def _compute_recommendations_sync(day: str, listing: pd.DataFrame, sample_size: 
     """추천 종목 스코어링 — 시가총액 기반 필터링 + 바닥 반등 종목 발굴"""
 
     # ── 1. 시가총액 + 거래대금으로 유의미한 종목만 선별 ──
+    # 소스는 fdr 리스팅의 marcap/amount. 원래 pykrx get_market_cap_by_ticker를 썼지만
+    # KRX API 변경(2026-05경)으로 죽어서 항상 폴백(리스팅 순서 앞 220개)으로 빠지고
+    # 있었다 — 필터가 조용히 무력화된 상태였다.
     cap_tickers: set[str] | None = None
     try:
-        market_cap = stock.get_market_cap_by_ticker(day)
-        if not market_cap.empty and "시가총액" in market_cap.columns:
-            # 시가총액 500억 이상
-            valid = market_cap[market_cap["시가총액"] >= 50_000_000_000]
-            # 거래대금 20억 이상 (유동성 부족 종목 제거 — 실매매 불가)
-            if "거래대금" in market_cap.columns:
-                valid = valid[valid["거래대금"] >= 2_000_000_000]
-            cap_tickers = set(valid.index.astype(str).str.zfill(6).tolist())
-            logger.info("시가총액+거래대금 필터: %d → %d종목", len(market_cap), len(cap_tickers))
+        if "marcap" in listing.columns:
+            valid = listing[pd.to_numeric(listing["marcap"], errors="coerce") >= 50_000_000_000]
+            if "amount" in listing.columns:
+                valid = valid[pd.to_numeric(valid["amount"], errors="coerce") >= 2_000_000_000]
+            cap_tickers = set(valid["ticker"].astype(str).str.zfill(6).tolist())
+            logger.info("시가총액+거래대금 필터(fdr): %d → %d종목", len(listing), len(cap_tickers))
     except Exception as ex:
-        logger.warning("시가총액 조회 실패 (리스팅 순서로 fallback): %s", ex)
+        logger.warning("시가총액 필터 실패 (리스팅 순서로 fallback): %s", ex)
 
     # ── 2. 리스팅과 교차 → 유효 종목 목록 ──
     all_tickers = listing["ticker"].tolist()
@@ -2783,19 +2789,24 @@ def _compute_top_caps_sync(day: str, market: str, limit: int, exclude: set[str])
 
     지지/저항은 반드시 여기서(백엔드 알고리즘으로) 계산해야 한다. 브리핑 JSON을 쓰는
     모델은 이 값을 알 수 없으므로, 모델에게 맡기면 지어낸 숫자가 들어간다.
-    """
-    cap = stock.get_market_cap_by_ticker(day, market=market)
-    if cap is None or cap.empty or "시가총액" not in cap.columns:
-        raise ValueError(f"시가총액 조회 실패: {market} {day}")
-    cap = cap.sort_values("시가총액", ascending=False)
 
+    시총 랭킹은 fdr 리스팅의 marcap 컬럼을 쓴다. pykrx get_market_cap_by_ticker는
+    KRX API 변경(2026-05경)으로 1.2.7에서 죽었다 — 라이브에서 KeyError로 확인됨.
+    """
     listing = _load_listing()
-    name_by_ticker: dict[str, str] = {}
-    if listing is not None and not listing.empty:
-        name_by_ticker = dict(zip(listing["ticker"].astype(str), listing["name"].astype(str)))
+    if listing is None or listing.empty or "marcap" not in listing.columns or "market" not in listing.columns:
+        # pykrx 폴백 리스팅에는 시총 정보가 없다 — 이 경우 top-caps는 생략된다
+        raise ValueError("리스팅에 시총 정보 없음 (fdr 실패 시 top-caps 불가)")
+
+    # 'KOSDAQ'은 prefix 매칭 — 코스닥 시총 상위(알테오젠·에코프로비엠 등)는
+    # 'KOSDAQ GLOBAL' 세그먼트 소속이라 완전일치로 거르면 전부 빠진다.
+    sel = listing[listing["market"].astype(str).str.upper().str.startswith(market)]
+    sel = sel.sort_values("marcap", ascending=False)
+
+    name_by_ticker: dict[str, str] = dict(zip(sel["ticker"].astype(str), sel["name"].astype(str)))
 
     items: list[dict] = []
-    for ticker in cap.index.astype(str).str.zfill(6):
+    for ticker in sel["ticker"].astype(str).str.zfill(6):
         if len(items) >= limit:
             break
         if ticker in exclude:
