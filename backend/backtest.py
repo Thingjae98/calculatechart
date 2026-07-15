@@ -118,10 +118,107 @@ class PredictionRecord:
 
 
 @dataclass
+class SRRecord:
+    """지지/저항선 1개의 forward 검증 결과."""
+    ticker: str
+    anchor_date: str         # 레벨 탐지 시점 — 이 날까지의 데이터만 사용
+    source: str              # 'algo' = _support_resistance / 'naive20' = 20일 고저 (대조군)
+    kind: str                # 'support' | 'resistance'
+    level: float
+    start_close: float       # 탐지 시점 종가
+    dist_pct: float          # 현재가 대비 거리 (%) — 멀수록 닿을 일이 없다
+    touched: bool
+    touch_day: int | None    # 며칠 뒤 닿았는지 (anchor 다음날 = 1)
+    outcome: str             # 'bounce' | 'break' | 'unclear' | 'untouched'
+
+
+@dataclass
 class TickerSummary:
     ticker: str
     n_predictions: int = 0
+    n_sr_levels: int = 0
     errors: list[str] = field(default_factory=list)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 지지/저항 forward 검증
+# ─────────────────────────────────────────────────────────────────────
+# 좋은 지지선이란 "가격이 닿으면 튕겨 나오는 선"이다. 그래서 두 가지를 잰다:
+#   1) touch_rate  — 애초에 가격이 닿기는 하는가 (안 닿는 선은 쓸모없다)
+#   2) respect_rate — 닿았을 때 튕겼는가(bounce) vs 뚫렸는가(break)
+# respect_rate가 핵심 품질 지표다. 'unclear'(횡보하다 기간 종료)는 분모에서 뺀다.
+
+SR_TOUCH_BAND = 0.005   # 레벨의 ±0.5% 안에 들어오면 '닿았다'
+SR_MOVE_PCT = 0.02      # 2% 이탈해야 bounce/break로 인정 (노이즈 배제)
+
+
+def evaluate_level(
+    df: pd.DataFrame,
+    anchor_idx: int,
+    horizon: int,
+    level: float,
+    kind: str,
+) -> tuple[bool, int | None, str]:
+    """
+    anchor_idx 시점에 탐지된 level을 이후 horizon 영업일 동안 추적.
+    return: (touched, touch_day, outcome)
+
+    접촉 판정은 고가/저가로(장중에 닿았는지), 결말 판정은 **종가**로 한다.
+    결말에 고가/저가를 쓰면 안 된다: 지지선까지 내려온 날은 그날 고가가 지지선보다
+    위에 있는 게 당연한데(내려오는 길이므로), 그걸 '튕겼다'로 읽어 뚫린 사례까지
+    bounce로 뒤집힌다. 종가는 장 마감 시점이라 접촉 이후 상태를 대표한다.
+    """
+    n = len(df)
+    end = min(anchor_idx + horizon, n - 1)
+    if end <= anchor_idx or not np.isfinite(level) or level <= 0:
+        return False, None, "untouched"
+
+    highs = pd.to_numeric(df["high"], errors="coerce").to_numpy(dtype=float)
+    lows = pd.to_numeric(df["low"], errors="coerce").to_numpy(dtype=float)
+    closes = pd.to_numeric(df["close"], errors="coerce").to_numpy(dtype=float)
+
+    is_support = kind == "support"
+
+    # ── 최초 접촉일 찾기 ──
+    touch_k: int | None = None
+    for k in range(anchor_idx + 1, end + 1):
+        if is_support:
+            if lows[k] <= level * (1 + SR_TOUCH_BAND):
+                touch_k = k
+                break
+        else:
+            if highs[k] >= level * (1 - SR_TOUCH_BAND):
+                touch_k = k
+                break
+    if touch_k is None:
+        return False, None, "untouched"
+
+    touch_day = touch_k - anchor_idx
+
+    # ── 접촉 이후 결말 판정 (종가 기준, 먼저 성립하는 쪽) ──
+    for j in range(touch_k, end + 1):
+        if is_support:
+            if closes[j] <= level * (1 - SR_MOVE_PCT):   # 아래로 확정 이탈 → 뚫림
+                return True, touch_day, "break"
+            if closes[j] >= level * (1 + SR_MOVE_PCT):   # 위로 회복 → 튕김
+                return True, touch_day, "bounce"
+        else:
+            if closes[j] >= level * (1 + SR_MOVE_PCT):   # 위로 확정 돌파 → 뚫림
+                return True, touch_day, "break"
+            if closes[j] <= level * (1 - SR_MOVE_PCT):   # 아래로 밀림 → 튕김
+                return True, touch_day, "bounce"
+
+    return True, touch_day, "unclear"
+
+
+def naive_levels(df: pd.DataFrame, anchor_idx: int, window: int = 20) -> tuple[float, float]:
+    """
+    대조군: 최근 20일 최저/최고. 알고리즘이 이것보다 나은지 비교하기 위한 기준선.
+    이걸 못 이기면 복잡한 점수화가 값을 못 하는 것이다.
+    """
+    lo_slice = pd.to_numeric(df["low"], errors="coerce").iloc[max(0, anchor_idx - window + 1): anchor_idx + 1]
+    hi_slice = pd.to_numeric(df["high"], errors="coerce").iloc[max(0, anchor_idx - window + 1): anchor_idx + 1]
+    return float(lo_slice.min()), float(hi_slice.max())
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -165,11 +262,15 @@ def slice_market_to(market_df: pd.DataFrame, anchor_date: str) -> pd.DataFrame:
 
 
 def predict_at(df_slice: pd.DataFrame, horizons: list[int],
-               market_slice: pd.DataFrame | None = None) -> tuple[int, dict[int, float]] | None:
+               market_slice: pd.DataFrame | None = None
+               ) -> tuple[int, dict[int, float], list[float], list[float]] | None:
     """
     df_slice 의 마지막 날 기준으로 예측 수행.
-    return: (score, {horizon: predicted_close})
+    return: (score, {horizon: predicted_close}, support_lines, resistance_lines)
     예측 실패(데이터 부족 등) 시 None.
+
+    지지/저항도 함께 돌려준다 — 여기서 이미 계산하므로 호출부가 다시 계산하면
+    같은 값을 두 번 구하게 되고, 무엇보다 두 경로가 갈라질 수 있다.
     """
     if len(df_slice) < 60:  # 기본 지표 계산에 필요한 최소량
         return None
@@ -213,7 +314,7 @@ def predict_at(df_slice: pd.DataFrame, horizons: list[int],
         if val is None or not np.isfinite(val):
             return None
         preds[h] = float(val)
-    return score, preds
+    return score, preds, support, resistance
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -226,21 +327,25 @@ def backtest_ticker(
     step: int,
     history_days: int,
     market_df: pd.DataFrame | None = None,
-) -> tuple[list[PredictionRecord], TickerSummary]:
+    sr_horizon: int = 20,
+) -> tuple[list[PredictionRecord], list[SRRecord], TickerSummary]:
     summary = TickerSummary(ticker=ticker)
     records: list[PredictionRecord] = []
+    sr_records: list[SRRecord] = []
 
     try:
         df = load_history(ticker, history_days=history_days)
     except Exception as e:
         summary.errors.append(f"load: {e}")
-        return records, summary
+        return records, sr_records, summary
 
     if len(df) < 120:
         summary.errors.append(f"데이터 부족 ({len(df)}봉)")
-        return records, summary
+        return records, sr_records, summary
 
-    # 검증 구간 — 마지막 max_h 일은 실제값 확보 때문에 제외
+    # 검증 구간 — 마지막 max_h 일은 실제값 확보 때문에 제외.
+    # sr_horizon을 여기 섞으면 anchor 범위가 바뀌어 기존 예측 baseline과 비교가 깨진다.
+    # 지지/저항은 아래 루프에서 forward 데이터가 충분한 anchor만 따로 걸러 쓴다.
     max_h = max(horizons)
     last_idx = len(df) - 1 - max_h  # 이 인덱스 이하에서만 anchor 가능
     first_idx = max(120, len(df) - validation_days - max_h)  # 초기 워밍업 + validation window
@@ -258,7 +363,40 @@ def backtest_ticker(
         result = predict_at(df_slice, horizons, market_slice=market_slice)
         if result is None:
             continue
-        score, preds = result
+        score, preds, support, resistance = result
+
+        # ── 지지/저항 forward 검증 ──
+        # sr_horizon 만큼 앞이 확보된 anchor만 평가한다. 끝자락에서 창을 잘라 쓰면
+        # 볼 시간이 모자라 untouched/unclear로 몰려 품질이 과소평가된다.
+        if anchor_idx + sr_horizon < len(df):
+            algo_pairs = [("support", support[0] if support else None),
+                          ("resistance", resistance[0] if resistance else None)]
+            naive_low, naive_high = naive_levels(df, anchor_idx, window=20)
+            naive_pairs = [
+                # 대조군도 알고리즘과 같은 쪽(현재가 위/아래) 조건을 만족할 때만 비교
+                ("support", naive_low if naive_low < start_close else None),
+                ("resistance", naive_high if naive_high > start_close else None),
+            ]
+
+            for src, pairs in (("algo", algo_pairs), ("naive20", naive_pairs)):
+                for kind, level in pairs:
+                    if level is None or not np.isfinite(level) or level <= 0:
+                        continue
+                    touched, touch_day, outcome = evaluate_level(
+                        df, anchor_idx, sr_horizon, float(level), kind
+                    )
+                    sr_records.append(SRRecord(
+                        ticker=ticker,
+                        anchor_date=anchor_date,
+                        source=src,
+                        kind=kind,
+                        level=float(level),
+                        start_close=start_close,
+                        dist_pct=float(abs(level - start_close) / start_close * 100),
+                        touched=bool(touched),
+                        touch_day=touch_day,
+                        outcome=outcome,
+                    ))
 
         for h in horizons:
             if anchor_idx + h >= len(df):
@@ -290,12 +428,70 @@ def backtest_ticker(
             ))
 
     summary.n_predictions = len(records)
-    return records, summary
+    summary.n_sr_levels = len(sr_records)
+    return records, sr_records, summary
 
 
 # ─────────────────────────────────────────────────────────────────────
 # 지표 집계
 # ─────────────────────────────────────────────────────────────────────
+def aggregate_sr(records: list[SRRecord]) -> dict[str, dict[str, Any]]:
+    """source×kind 별 지지/저항 품질 집계. 키: 'algo/support' 형태."""
+    out: dict[str, dict[str, Any]] = {}
+    for src in ("algo", "naive20"):
+        for kind in ("support", "resistance"):
+            sel = [r for r in records if r.source == src and r.kind == kind]
+            if not sel:
+                continue
+            touched = [r for r in sel if r.touched]
+            bounce = sum(1 for r in touched if r.outcome == "bounce")
+            broke = sum(1 for r in touched if r.outcome == "break")
+            unclear = sum(1 for r in touched if r.outcome == "unclear")
+            decided = bounce + broke
+            out[f"{src}/{kind}"] = {
+                "n_levels": len(sel),
+                "touch_rate": round(len(touched) / len(sel) * 100, 1),
+                "n_touched": len(touched),
+                "bounce": bounce,
+                "break": broke,
+                "unclear": unclear,
+                # 핵심 지표 — 닿았을 때 튕긴 비율. 판정 불가(unclear)는 분모에서 제외.
+                "respect_rate": round(bounce / decided * 100, 1) if decided else None,
+                "avg_dist_pct": round(float(np.mean([r.dist_pct for r in sel])), 2),
+                "avg_touch_day": round(float(np.mean([r.touch_day for r in touched])), 1) if touched else None,
+            }
+    return out
+
+
+def fmt_table_sr(stats: dict[str, dict[str, Any]], sr_horizon: int) -> str:
+    if not stats:
+        return "\n=== 지지/저항 품질 ===\n(데이터 없음)\n"
+    lines = [
+        f"\n=== 지지/저항 품질 (탐지 후 {sr_horizon}영업일 추적) ===",
+        "┌───────────────────┬────────┬──────────┬────────┬────────┬─────────┬──────────────┬──────────┐",
+        "│ 구분              │ 레벨수 │ 접촉률   │ 튕김   │ 뚫림   │ 판정불가│ 존중률★      │ 평균거리 │",
+        "├───────────────────┼────────┼──────────┼────────┼────────┼─────────┼──────────────┼──────────┤",
+    ]
+    label = {
+        "algo/support": "알고리즘 지지",
+        "algo/resistance": "알고리즘 저항",
+        "naive20/support": "20일저가(대조)",
+        "naive20/resistance": "20일고가(대조)",
+    }
+    for key in ("algo/support", "naive20/support", "algo/resistance", "naive20/resistance"):
+        s = stats.get(key)
+        if not s:
+            continue
+        rr = f"{s['respect_rate']:.1f}%" if s["respect_rate"] is not None else "N/A"
+        lines.append(
+            f"│ {label[key]:<17} │ {s['n_levels']:>6} │ {s['touch_rate']:>7.1f}% │"
+            f" {s['bounce']:>6} │ {s['break']:>6} │ {s['unclear']:>7} │ {rr:>12} │ {s['avg_dist_pct']:>7.2f}% │"
+        )
+    lines.append("└───────────────────┴────────┴──────────┴────────┴────────┴─────────┴──────────────┴──────────┘")
+    lines.append("★ 존중률 = 튕김/(튕김+뚫림). 알고리즘이 대조군(20일 고저)보다 높아야 값을 하는 것이다.")
+    return "\n".join(lines)
+
+
 def aggregate_by_horizon(records: list[PredictionRecord]) -> dict[int, dict[str, float]]:
     out: dict[int, dict[str, float]] = {}
     horizons = sorted({r.horizon for r in records})
@@ -406,6 +602,8 @@ def main() -> int:
                         help="종목당 로드할 총 히스토리 (기본 730일)")
     parser.add_argument("--label", type=str, default="baseline",
                         help="결과 JSON 파일명 태그 (예: 'after_tune')")
+    parser.add_argument("--sr-horizon", type=int, default=20,
+                        help="지지/저항 탐지 후 추적할 영업일 (기본 20)")
     args = parser.parse_args()
 
     tickers = [t.strip() for t in args.tickers.split(",") if t.strip()] or DEFAULT_TICKERS
@@ -420,6 +618,7 @@ def main() -> int:
 
     t0 = time.time()
     all_records: list[PredictionRecord] = []
+    all_sr: list[SRRecord] = []
     all_summaries: list[TickerSummary] = []
 
     # KOSPI 지수 한 번 로드 (베타 차감용 — 모든 종목에서 재사용)
@@ -432,17 +631,20 @@ def main() -> int:
 
     for i, ticker in enumerate(tickers, start=1):
         try:
-            records, summary = backtest_ticker(
+            records, sr_records, summary = backtest_ticker(
                 ticker=ticker,
                 validation_days=args.validation_days,
                 horizons=horizons,
                 step=args.step,
                 history_days=args.history_days,
                 market_df=market_df,
+                sr_horizon=args.sr_horizon,
             )
             all_records.extend(records)
+            all_sr.extend(sr_records)
             all_summaries.append(summary)
-            status = f"{summary.n_predictions}건" if summary.n_predictions > 0 else f"실패: {summary.errors}"
+            status = (f"{summary.n_predictions}건 / S·R {summary.n_sr_levels}개"
+                      if summary.n_predictions > 0 else f"실패: {summary.errors}")
             print(f"  [{i:>2}/{len(tickers)}] {ticker}: {status}")
         except Exception as e:
             print(f"  [{i:>2}/{len(tickers)}] {ticker}: 예외 — {e}")
@@ -466,6 +668,10 @@ def main() -> int:
     bucket_stats = aggregate_by_score_bucket(all_records, horizon=main_h)
     print(fmt_table_buckets(bucket_stats, horizon=main_h))
 
+    # 지지/저항 품질
+    sr_stats = aggregate_sr(all_sr)
+    print(fmt_table_sr(sr_stats, sr_horizon=args.sr_horizon))
+
     # JSON 저장
     script_dir = os.path.dirname(os.path.abspath(__file__))
     out_dir = os.path.join(script_dir, "backtest_results")
@@ -482,11 +688,14 @@ def main() -> int:
             "step": args.step,
             "validation_days": args.validation_days,
             "history_days": args.history_days,
+            "sr_horizon": args.sr_horizon,
         },
         "summary_by_horizon": by_h,
         "score_buckets_main_horizon": {str(main_h): bucket_stats},
+        "sr_quality": sr_stats,
         "per_ticker_counts": {s.ticker: s.n_predictions for s in all_summaries},
         "records": [asdict(r) for r in all_records],
+        "sr_records": [asdict(r) for r in all_sr],
     }
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
