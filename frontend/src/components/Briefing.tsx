@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './Briefing.css'
-import type { DailyBriefing, SemiOutlook, Tone } from '../lib/briefing'
+import type { DailyBriefing, SemiOutlook, Tone, TopCapItem } from '../lib/briefing'
 import { fetchLatestBriefing, fmtPct, pctTone } from '../lib/briefing'
 
 function toneClass(tone: Tone) {
@@ -48,6 +48,86 @@ function SemiCard({ s }: { s: SemiOutlook }) {
         <span className="bSemiLabel">오늘의 단기 전략</span>
         <p>{s.strategy}</p>
       </div>
+    </div>
+  )
+}
+
+/**
+ * 시총 상위 종목 카드 — 숫자(종가/등락/지지/저항)는 백엔드 알고리즘 값, comment만 모델 작성.
+ * 지지/저항은 "여기서 버팀 / 여기서 막힘"이 바로 읽히도록 라벨을 쉬운 말로 둔다.
+ */
+function TopCapCard({ s }: { s: TopCapItem }) {
+  const tone = pctTone(s.change_pct)
+  return (
+    <div className="bTopCard">
+      <div className="bTopHead">
+        <span className="bTopName">{s.name}</span>
+        <span className={`bTopPct ${toneClass(tone)}`}>{fmtPct(s.change_pct)}</span>
+      </div>
+      <div className="bTopPrice">
+        {s.close}원 <span className="bTopPriceNote">전일 종가</span>
+      </div>
+
+      {/* 지지/저항 — 둘 다 없으면 줄 자체를 숨긴다(빈 칸이 더 혼란스러움) */}
+      {(s.support || s.resistance) && (
+        <div className="bTopLevels">
+          <span className="bTopLevel">
+            <span className="bTopLevelLabel">지지 (여기서 버팀)</span>
+            <span className="bTopLevelVal">{s.support ? `${s.support}원` : '—'}</span>
+          </span>
+          <span className="bTopLevel">
+            <span className="bTopLevelLabel">저항 (여기서 막힘)</span>
+            <span className="bTopLevelVal">{s.resistance ? `${s.resistance}원` : '—'}</span>
+          </span>
+        </div>
+      )}
+
+      {s.comment && <p className="bTopComment">{s.comment}</p>}
+    </div>
+  )
+}
+
+/**
+ * 시총 상위 섹션. 코스피 5 + 코스닥 5 = 10장을 한 번에 쌓으면 화면이 너무 길어져
+ * "단순함 우선" 원칙과 충돌하므로, 탭으로 한 번에 5장만 보여준다.
+ */
+function TopCapsSection({ caps }: { caps: NonNullable<DailyBriefing['top_caps']> }) {
+  const [market, setMarket] = useState<'kospi' | 'kosdaq'>('kospi')
+  const items = market === 'kospi' ? caps.kospi : caps.kosdaq
+
+  return (
+    <div className="bCard">
+      <h2 className="bCardTitle">
+        4. 시가총액 상위 <span className="bCardSub">지지·저항 한눈에</span>
+      </h2>
+
+      {/* 탭: 선택 상태를 색만이 아니라 aria-selected로도 알린다 */}
+      <div className="bTabs" role="tablist" aria-label="시장 선택">
+        <button
+          role="tab"
+          aria-selected={market === 'kospi'}
+          className={`bTab ${market === 'kospi' ? 'bTabActive' : ''}`}
+          onClick={() => setMarket('kospi')}
+        >
+          코스피
+        </button>
+        <button
+          role="tab"
+          aria-selected={market === 'kosdaq'}
+          className={`bTab ${market === 'kosdaq' ? 'bTabActive' : ''}`}
+          onClick={() => setMarket('kosdaq')}
+        >
+          코스닥
+        </button>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="bTopEmpty">이 시장의 종목 정보를 불러오지 못했습니다.</div>
+      ) : (
+        <div className="bTopGrid">
+          {items.map((s) => <TopCapCard key={s.ticker} s={s} />)}
+        </div>
+      )}
     </div>
   )
 }
@@ -180,9 +260,12 @@ export function Briefing() {
         </div>
       </div>
 
-      {/* 4. 개장 후 관전 포인트 */}
+      {/* 4. 시총 상위 — 백엔드가 콜드/다운이면 워크플로우가 생략하므로 없을 수 있다 */}
+      {data.top_caps && <TopCapsSection caps={data.top_caps} />}
+
+      {/* 5. 개장 후 관전 포인트 */}
       <div className="bCard">
-        <h2 className="bCardTitle">4. 핵심 체크리스트 <span className="bCardSub">개장 후 관전 포인트</span></h2>
+        <h2 className="bCardTitle">5. 핵심 체크리스트 <span className="bCardSub">개장 후 관전 포인트</span></h2>
         <ul className="bCheckList">
           {data.checklist.map((c, i) => <li key={i}>{c}</li>)}
         </ul>

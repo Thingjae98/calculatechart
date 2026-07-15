@@ -38,6 +38,55 @@ jobs:
         id: date
         run: echo "target=$(date -u -d '+9 hours' +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
 
+      # 시총 상위 종목의 지지/저항은 백엔드의 scipy 피봇 알고리즘 결과다. 모델은 알 수 없으므로
+      # 생성 '전에' 받아둔 뒤, 종목 목록을 모델에게 넘겨 코멘트만 쓰게 한다.
+      # 실패해도 브리핑 본문은 나가야 하므로 continue-on-error — 이 섹션만 빠진다.
+      - name: Fetch top market-cap stocks
+        id: topcaps
+        continue-on-error: true
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://calculatechart.onrender.com' }}
+        run: |
+          set -uo pipefail
+          # Render 무료 플랜은 15분 무활동 시 슬립 → 첫 호출이 콜드스타트(30~60초).
+          # keepwarm은 07:00~16:00만 도는데 이 잡은 06:07이라 항상 콜드다. 먼저 깨운다.
+          curl -sS -m 120 "$BACKEND_URL/api/ping" || echo "ping 실패 — 그래도 계속 진행"
+
+          fetch_market() {  # $1=market  $2=exclude(CSV)
+            curl -sS -m 300 --retry 2 --retry-delay 15 \
+              "$BACKEND_URL/api/briefing/top-caps?market=$1&limit=5&exclude=$2" \
+              || echo '{}'
+          }
+
+          # 삼성전자(005930)·SK하이닉스(000660)는 '반도체 투톱' 섹션에서 이미 깊게 다루므로 제외.
+          fetch_market KOSPI  "005930,000660" > /tmp/kospi.json
+          fetch_market KOSDAQ ""              > /tmp/kosdaq.json
+
+          jq -n \
+            --slurpfile a /tmp/kospi.json \
+            --slurpfile b /tmp/kosdaq.json \
+            '{
+               kospi:  ($a[0].items // []),
+               kosdaq: ($b[0].items // []),
+               as_of:  ($a[0].as_of // $b[0].as_of // null)
+             }' > /tmp/top-caps.json || echo '{"kospi":[],"kosdaq":[],"as_of":null}' > /tmp/top-caps.json
+
+          # 백엔드가 JSON이 아닌 응답(Render 오류 페이지 등)을 주면 jq가 실패한다 → 0으로 취급
+          n_kospi=$(jq '.kospi  | length' /tmp/top-caps.json 2>/dev/null || echo 0)
+          n_kosdaq=$(jq '.kosdaq | length' /tmp/top-caps.json 2>/dev/null || echo 0)
+          echo "코스피 ${n_kospi}종목 / 코스닥 ${n_kosdaq}종목"
+          jq -r '.kospi[], .kosdaq[] | "  \(.market) \(.ticker) \(.name)"' /tmp/top-caps.json || true
+
+          if [ "$n_kospi" -eq 0 ] && [ "$n_kosdaq" -eq 0 ]; then
+            echo "::warning::시총 상위 조회 실패 — top_caps 섹션 없이 진행"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            # 모델에게 넘길 입력 (티커/이름만 있으면 된다 — 숫자는 나중에 덮어쓴다)
+            jq '{kospi: [.kospi[] | {ticker, name}], kosdaq: [.kosdaq[] | {ticker, name}]}' \
+              /tmp/top-caps.json > /tmp/top-caps-input.json
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate briefing with Claude
         uses: anthropics/claude-code-action@v1
         with:
@@ -46,9 +95,18 @@ jobs:
           prompt: |
             `.github/briefing/prompt.md` 파일을 읽고 그 지침을 정확히 따라라.
             TARGET_DATE(KST 기준 브리핑 대상일) = ${{ steps.date.outputs.target }}
+            TOP_CAPS_INPUT = ${{ steps.topcaps.outputs.ok == 'true' && '/tmp/top-caps-input.json' || '(없음 — top_caps 키를 생략하라)' }}
             결과 JSON을 frontend/public/briefings/${{ steps.date.outputs.target }}.json 과
             frontend/public/briefings/latest.json 두 파일로 저장하라. git 커밋은 하지 마라.
           claude_args: '--allowedTools "Read,Write,Edit,WebSearch,WebFetch,Bash(node:*)"'
+
+      # 모델이 쓴 top_caps 숫자를 백엔드 계산값으로 덮어쓴다 (코멘트만 살린다).
+      - name: Merge authoritative top-caps numbers
+        if: steps.topcaps.outputs.ok == 'true'
+        run: |
+          node .github/briefing/merge-top-caps.mjs /tmp/top-caps.json \
+            "frontend/public/briefings/${{ steps.date.outputs.target }}.json" \
+            "frontend/public/briefings/latest.json"
 
       # 모델은 자기가 실행된 실제 시각을 알 수 없어 07:00 같은 그럴듯한 값을 지어낸다.
       # 워크플로우가 실제 시각(KST)으로 덮어써야 화면의 '생성 시각'이 사실과 맞는다.

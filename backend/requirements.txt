@@ -1,6 +1,12 @@
 fastapi
 uvicorn[standard]
-pykrx
+# pykrx 버전 고정 — render.yaml의 rootDir:backend 때문에 backend/가 바뀔 때만 재빌드된다.
+# 현재 운영 중인 빌드는 2026-04-22자(당시 최신 1.2.7)이고 정상 동작한다.
+# 1.2.8(2026-05-04)부터 KRX 로그인 경로(KRX_ID/KRX_PW)가 추가됐는데, 자격증명 없이도
+# 조회가 되는지 검증하지 못했다. 버전을 풀어두면 backend를 한 줄만 고쳐도 재빌드가
+# 걸리면서 검증 안 된 버전으로 조용히 갈아탄다 → 앱 전체(차트 분석 포함)가 죽을 수 있다.
+# 올리려면 스테이징에서 /api/recommendations 응답을 확인한 뒤 올릴 것.
+pykrx==1.2.7
 pandas
 numpy
 scipy

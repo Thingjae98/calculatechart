@@ -2704,6 +2704,100 @@ async def get_recommendations(limit: int = Query(10, ge=1, le=50)):
         return {"error": f"추천 계산 중 오류 발생: {str(e)}"}
     
 
+def _compute_top_caps_sync(day: str, market: str, limit: int, exclude: set[str]) -> list[dict]:
+    """
+    시가총액 상위 N종목 + 지지/저항 계산 (브리핑 생성용).
+
+    지지/저항은 반드시 여기서(백엔드 알고리즘으로) 계산해야 한다. 브리핑 JSON을 쓰는
+    모델은 이 값을 알 수 없으므로, 모델에게 맡기면 지어낸 숫자가 들어간다.
+    """
+    cap = stock.get_market_cap_by_ticker(day, market=market)
+    if cap is None or cap.empty or "시가총액" not in cap.columns:
+        raise ValueError(f"시가총액 조회 실패: {market} {day}")
+    cap = cap.sort_values("시가총액", ascending=False)
+
+    listing = _load_listing()
+    name_by_ticker: dict[str, str] = {}
+    if listing is not None and not listing.empty:
+        name_by_ticker = dict(zip(listing["ticker"].astype(str), listing["name"].astype(str)))
+
+    items: list[dict] = []
+    for ticker in cap.index.astype(str).str.zfill(6):
+        if len(items) >= limit:
+            break
+        if ticker in exclude:
+            continue
+        # 우선주 제외 — 삼성전자우처럼 보통주와 같은 회사가 중복 노출된다.
+        # KRX 보통주는 코드 끝자리가 0, 우선주는 5/7/9 등.
+        if not ticker.endswith("0"):
+            continue
+        try:
+            df, support, resistance, score, _ = _load_stock_for_score_sync(ticker, day)
+        except Exception as ex:
+            logger.warning("top-caps 종목 로드 실패 %s: %s", ticker, ex)
+            continue
+
+        closes = pd.to_numeric(df["close"], errors="coerce").dropna()
+        if len(closes) < 2:
+            continue
+        last = float(closes.iloc[-1])
+        prev = float(closes.iloc[-2])
+        change_pct = round((last - prev) / prev * 100, 2) if prev else None
+
+        items.append(
+            {
+                "ticker": ticker,
+                "name": name_by_ticker.get(ticker, ticker),
+                "market": market,
+                "close": f"{int(round(last)):,}",
+                "change_pct": change_pct,
+                "support": f"{int(round(support[0])):,}" if support else None,
+                "resistance": f"{int(round(resistance[0])):,}" if resistance else None,
+                "score": score,
+            }
+        )
+
+    logger.info("top-caps %s: %d종목 계산 완료", market, len(items))
+    return items
+
+
+@app.get("/api/briefing/top-caps")
+async def get_top_caps(
+    market: str = Query("KOSPI", description="KOSPI | KOSDAQ"),
+    limit: int = Query(5, ge=1, le=10),
+    exclude: str = Query("", description="제외할 티커 CSV (예: 005930,000660)"),
+):
+    """
+    시가총액 상위 N종목 + 지지/저항 — 브리핑 워크플로우가 하루 1회 호출한다.
+
+    OHLCV 배열은 반환하지 않는다(브리핑 카드는 숫자만 필요). 프론트가 실시간으로
+    부르지 않는 이유: keepwarm은 07:00~16:00만 도는데 브리핑은 06:30에 읽히므로
+    그 시각 Render는 콜드 상태다. 생성 시각에 미리 구워 JSON에 넣는다.
+    """
+    market_up = market.strip().upper()
+    if market_up not in ("KOSPI", "KOSDAQ"):
+        return {"error": f"market은 KOSPI 또는 KOSDAQ이어야 합니다: {market}"}
+
+    exclude_set = {t.strip().zfill(6) for t in exclude.split(",") if t.strip()}
+
+    try:
+        day = await _best_business_day()
+        items = await _run_with_timeout(
+            _compute_top_caps_sync, day, market_up, limit, exclude_set,
+            # 종목당 OHLCV를 1회씩 순차 조회하므로 넉넉히
+            timeout=PYKRX_TIMEOUT_SEC * (limit + 3),
+        )
+        # 브리핑 JSON의 date와 형식을 맞춘다 (YYYYMMDD → YYYY-MM-DD)
+        as_of = f"{day[:4]}-{day[4:6]}-{day[6:8]}" if len(day) == 8 else day
+        return {"as_of": as_of, "market": market_up, "count": len(items), "items": items}
+    except asyncio.TimeoutError:
+        logger.warning("top-caps 계산 타임아웃: %s", market_up)
+        return {"error": f"시총 상위 종목 계산 시간 초과 ({market_up})"}
+    except Exception as e:
+        logger.exception("top-caps 계산 실패")
+        return {"error": f"시총 상위 종목 계산 중 오류: {str(e)}"}
+
+
 @app.get("/api/stock/{ticker_or_name}/predict")
 async def predict_stock(
     ticker_or_name: str,

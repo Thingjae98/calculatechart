@@ -35,6 +35,30 @@ export interface SemiOutlook {
   strategy: string
 }
 
+/**
+ * 시가총액 상위 종목 카드.
+ *
+ * 숫자(close/change_pct/support/resistance)는 백엔드 알고리즘이 계산해 워크플로우가
+ * 주입한다 — 모델이 쓴 값을 덮어쓰므로 지어낸 숫자가 들어갈 수 없다.
+ * comment만 모델이 웹 조사로 작성한다.
+ */
+export interface TopCapItem {
+  ticker: string
+  name: string
+  /** 'KOSPI' | 'KOSDAQ' */
+  market: string
+  /** 표시용 종가 (예: "205,000") */
+  close: string
+  /** 전일 대비 등락률(%). 모르면 null */
+  change_pct: number | null
+  /** 표시용 지지선 (예: "198,000"). 탐지 실패 시 null */
+  support: string | null
+  /** 표시용 저항선. 탐지 실패 시 null */
+  resistance: string | null
+  /** 쉬운 말 한 줄 코멘트 (모델 작성) */
+  comment?: string
+}
+
 export interface DailyBriefing {
   /** 'YYYY-MM-DD' (KST 기준 브리핑 대상일) */
   date: string
@@ -78,7 +102,19 @@ export interface DailyBriefing {
     hynix: SemiOutlook
   }
 
-  // 4. 개장 후 관전 포인트
+  /**
+   * 4. 시가총액 상위 종목 (코스피 5 + 코스닥 5)
+   * optional — 백엔드(Render)가 콜드/다운이면 워크플로우가 이 섹션을 생략한다.
+   * 브리핑 본문은 백엔드와 무관하게 항상 생성되어야 하므로 없으면 섹션을 숨긴다.
+   */
+  top_caps?: {
+    kospi: TopCapItem[]
+    kosdaq: TopCapItem[]
+    /** 데이터 기준 영업일 'YYYY-MM-DD' */
+    as_of?: string
+  }
+
+  // 5. 개장 후 관전 포인트
   checklist: string[]
 }
 
