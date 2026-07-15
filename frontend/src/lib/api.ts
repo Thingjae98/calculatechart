@@ -119,6 +119,20 @@ export async function searchStocks(query: string): Promise<SearchResponse> {
   }
 }
 
+/**
+ * 응답 JSON 파싱 가드.
+ * 백엔드가 콜드/프록시 오류로 HTML 등 JSON 아닌 응답을 주면 res.json()이
+ * "Failed to execute 'json' on 'Response'" 같은 영어 기술 에러를 던지는데,
+ * 이 앱의 주 사용자는 비전문가라 그 문구가 화면에 그대로 노출되면 안 된다.
+ */
+async function parseJsonOrThrow<T>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T
+  } catch {
+    throw new Error('서버가 잠시 응답하지 못했습니다. 잠시 후 다시 시도해주세요.')
+  }
+}
+
 /** Render 무료 플랜 cold start 해결용: 서버를 미리 깨움 */
 export async function pingServer(): Promise<boolean> {
   try {
@@ -145,8 +159,8 @@ export async function fetchPrediction(
   } catch {
     throw new Error('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.')
   }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const body = await res.json()
+  if (!res.ok) throw new Error(`서버 오류가 발생했습니다 (${res.status}). 잠시 후 다시 시도해주세요.`)
+  const body = await parseJsonOrThrow<PredictionResult>(res)
   if (body?.error) throw new Error(body.error)
   return body
 }
@@ -190,10 +204,10 @@ export async function fetchOhlcv(args: {
   } catch {
     throw new Error('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인하세요.')
   }
-  const body = (await res.json()) as OhlcvResponse
+  const body = await parseJsonOrThrow<OhlcvResponse>(res)
 
   if (!res.ok) {
-    throw new Error(body?.error ?? `HTTP ${res.status}`)
+    throw new Error(body?.error ?? `서버 오류가 발생했습니다 (${res.status}). 잠시 후 다시 시도해주세요.`)
   }
   if (body?.error) {
     throw new Error(body.error)
@@ -268,9 +282,15 @@ function isRecommendationItem(x: unknown): x is RecommendationItem {
 }
 
 export async function fetchRecommendations(limit = 10): Promise<RecommendationItem[]> {
-  const res = await fetch(buildApiUrl(`/api/recommendations?limit=${limit}`), { method: 'GET' })
-  const body = (await res.json()) as { top?: unknown; error?: string }
-  if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(buildApiUrl(`/api/recommendations?limit=${limit}`), { method: 'GET' })
+  } catch {
+    // 다른 API와 동일하게 네트워크 실패도 한국어로 — 원시 'Failed to fetch' 노출 방지
+    throw new Error('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.')
+  }
+  const body = await parseJsonOrThrow<{ top?: unknown; error?: string }>(res)
+  if (!res.ok) throw new Error(body?.error ?? `서버 오류가 발생했습니다 (${res.status}). 잠시 후 다시 시도해주세요.`)
   if (body?.error) throw new Error(body.error)
   if (!Array.isArray(body?.top)) return []
 

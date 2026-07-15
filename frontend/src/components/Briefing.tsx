@@ -260,12 +260,14 @@ export function Briefing() {
         </div>
       </div>
 
-      {/* 4. 시총 상위 — 백엔드가 콜드/다운이면 워크플로우가 생략하므로 없을 수 있다 */}
+      {/* 4. 시총 상위 — 백엔드가 콜드/다운이면 워크플로우가 생략하므로 없을 수 있다.
+          체크리스트 번호를 동적으로 매기는 이유: 이 섹션이 빠진 날 "1,2,3,5"로
+          건너뛰면 사용자는 4번이 안 보이는 걸 자기 실수로 여긴다. */}
       {data.top_caps && <TopCapsSection caps={data.top_caps} />}
 
-      {/* 5. 개장 후 관전 포인트 */}
+      {/* 마지막. 개장 후 관전 포인트 */}
       <div className="bCard">
-        <h2 className="bCardTitle">5. 핵심 체크리스트 <span className="bCardSub">개장 후 관전 포인트</span></h2>
+        <h2 className="bCardTitle">{data.top_caps ? '5' : '4'}. 핵심 체크리스트 <span className="bCardSub">개장 후 관전 포인트</span></h2>
         <ul className="bCheckList">
           {data.checklist.map((c, i) => <li key={i}>{c}</li>)}
         </ul>

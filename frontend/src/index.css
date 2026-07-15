@@ -11,6 +11,14 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  /* 점수 등급 색 — 흰 배경 대비 4.5:1 이상 (Briefing.css의 라이트 톤과 동일 계열).
+     ChartAnalysis의 scoreColor()가 이 토큰을 반환한다. 밝은 원색(#22c55e 등)을
+     텍스트에 쓰면 라이트 모드에서 2.2:1 수준으로 뭉개진다 — 실측으로 확인됨. */
+  --score-good: #15803d;   /* 65+  green-700  5.0:1 */
+  --score-watch: #b45309;  /* 50+  amber-700  4.9:1 */
+  --score-warn: #c2410c;   /* 35+  orange-700 5.1:1 */
+  --score-bad: #c81e1e;    /* <35  red-700    5.9:1 */
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -46,6 +54,11 @@
   --social-bg: rgba(47, 48, 58, 0.5);
   --shadow:
     rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  /* 점수 등급 색 — 어두운 배경(#16171d)에선 밝은 톤이 잘 읽힌다 (4.7~8.3:1) */
+  --score-good: #4ade80;   /* green-400 */
+  --score-watch: #fbbf24;  /* amber-400 */
+  --score-warn: #fb923c;   /* orange-400 */
+  --score-bad: #f87171;    /* red-400 */
   /* 폼 컨트롤·스크롤바 같은 네이티브 UI도 테마를 따라가게 한다 */
   color-scheme: dark;
 }

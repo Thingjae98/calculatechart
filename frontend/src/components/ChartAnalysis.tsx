@@ -6,11 +6,13 @@ import { fetchOhlcv, fetchRecommendations, fetchPrediction, pingServer, searchSt
 
 const PRED_DAY_OPTIONS = [7, 14, 21, 30] as const
 
+// CSS 토큰(index.css)을 반환한다 — 라이트/다크 각각 대비 4.5:1 이상으로 정의돼 있다.
+// 밝은 원색 리터럴을 쓰면 라이트 모드에서 2.2:1 수준으로 뭉개진다.
 function scoreColor(score: number) {
-  if (score >= 65) return '#22c55e'
-  if (score >= 50) return '#f59e0b'
-  if (score >= 35) return '#f97316'
-  return '#ef4444'
+  if (score >= 65) return 'var(--score-good)'
+  if (score >= 50) return 'var(--score-watch)'
+  if (score >= 35) return 'var(--score-warn)'
+  return 'var(--score-bad)'
 }
 
 function scoreLabel(score: number) {
