@@ -31,7 +31,7 @@
 ```json
 {
   "date": "YYYY-MM-DD",
-  "generated_at": "ISO8601 (KST, +09:00)",
+  "generated_at": "ISO8601 (KST, +09:00) — 워크플로우가 실제 실행 시각으로 덮어쓴다. 아무 값이나 넣어도 무방",
   "is_sample": false,
   "global": {
     "indices": [
