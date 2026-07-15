@@ -27,6 +27,18 @@ RECOMMEND_SAMPLE_SIZE = int(os.environ.get("RECOMMEND_SAMPLE_SIZE", "220"))
 # pykrx 호출 타임아웃 (초)
 PYKRX_TIMEOUT_SEC = int(os.environ.get("PYKRX_TIMEOUT_SEC", "30"))
 
+# ── 지지/저항 레벨 점수 가중치 ──
+# 환경변수로 뺀 이유: 백테스트로 스윕해야 하는 값이라 코드를 고쳐가며 재실행하면
+# 실수가 난다. 기본값이 곧 운영값이며, 바꾸려면 반드시 backtest.py로 검증할 것
+# (지표: 지지/저항 존중률 + 대조군(20일 고저) 대비 우위).
+SR_W_TOUCH = float(os.environ.get("SR_W_TOUCH", "0.40"))       # 터치 횟수 + 피봇 현저성
+SR_W_VOLUME = float(os.environ.get("SR_W_VOLUME", "0.30"))     # 해당 가격대 거래량
+SR_W_RECENCY = float(os.environ.get("SR_W_RECENCY", "0.20"))   # 최근에 형성됐는가
+SR_W_PROXIMITY = float(os.environ.get("SR_W_PROXIMITY", "0.10"))  # 현재가에 가까운가
+# 근접도가 0이 되는 거리. 유효 필터는 ±20%까지 허용하므로 0.15면 15~20% 구간
+# 레벨들은 근접도가 모두 0으로 뭉개져 서로 구분되지 않는다.
+SR_PROXIMITY_SPAN = float(os.environ.get("SR_PROXIMITY_SPAN", "0.15"))
+
 # pykrx는 동기 라이브러리이므로 ThreadPoolExecutor를 통해 타임아웃 제어
 _executor = ThreadPoolExecutor(max_workers=4)
 
@@ -235,6 +247,10 @@ def _clean_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=["open", "high", "low", "close"])
     df = df[(df["close"] > 0) & (df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0)]
+    # volume NaN은 행을 버리는 대신 0으로 — 가격은 유효한데 거래량만 빠진 날을
+    # 통째로 지우면 차트가 끊긴다. NaN인 채 응답에 나가면 JSON 직렬화가 500을 낸다.
+    if "volume" in df.columns:
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
     return df
 
 
@@ -344,15 +360,15 @@ def _support_resistance(
             most_recent_idx = max(indices)
             recency_score = most_recent_idx / max(1, lookback - 1)
 
-            # (d) 현재가 근접도 점수 (10%): 가까울수록 높음
+            # (d) 현재가 근접도 점수: 가까울수록 높음 (SR_PROXIMITY_SPAN 이상이면 0점)
             dist_pct = abs(rep_price - last_price) / last_price
-            proximity_score = max(0, 1.0 - dist_pct / 0.15)  # 15% 이상이면 0점
+            proximity_score = max(0, 1.0 - dist_pct / SR_PROXIMITY_SPAN)
 
             total_score = (
-                touch_score * 0.40
-                + vol_score * 0.30
-                + recency_score * 0.20
-                + proximity_score * 0.10
+                touch_score * SR_W_TOUCH
+                + vol_score * SR_W_VOLUME
+                + recency_score * SR_W_RECENCY
+                + proximity_score * SR_W_PROXIMITY
             )
 
             scored.append({
@@ -477,6 +493,12 @@ def _compute_ichimoku(df: pd.DataFrame) -> dict:
         sa_val = float(senkou_a.iloc[-1])
         sb_val = float(senkou_b.iloc[-1])
         chikou_val = float(close.iloc[-1])  # 후행스팬 = 현재 종가 (차트에서 26봉 뒤에 표시)
+
+        # senkou_b는 52봉이 필요해 27~51 거래일 데이터(예: days_back=60)에선 NaN이 된다.
+        # NaN이 응답 dict에 들어가면 JSONResponse(allow_nan=False) 직렬화에서 ValueError
+        # → 엔드포인트 try/except 밖에서 500 — "항상 200 + error 키" 계약이 깨진다.
+        if not all(np.isfinite(v) for v in (t_val, k_val, sa_val, sb_val, chikou_val)):
+            return {}
 
         cloud_top    = max(sa_val, sb_val)
         cloud_bottom = min(sa_val, sb_val)
@@ -1858,6 +1880,13 @@ def _generate_predicted_candles(
     # 모멘텀 drift — 멀티타임프레임 + 레짐 반영
     # 0.15→0.08, 0.08→0.05: 추세 과신 방지 (상향 편향 원인 중 하나)
     if is_strong_trend:
+        # ⚠ 겉보기 '부호 반전 버그'지만 고치지 말 것 — 백테스트가 기각했다.
+        # 강한 하락추세(-DI 우세)에선 weighted_mom<0 × trend_direction=-1 = 양수 drift,
+        # 즉 급락 종목일수록 상승 예측이 된다. abs(weighted_mom)*direction으로 '수정'해
+        # 측정한 결과(32종목, 영향 649건, prodlb vs drift_fix):
+        #   편향은 개선(+1.19→+0.86 등)되지만 7일 MAPE 7.52→7.84, 방향 54.6%→50.9% 악화.
+        # 해석: 이 곱셈이 과매도 강추세 종목의 단기 반등(평균회귀)을 우연히 인코딩하고
+        # 있어 예측력에 기여한다. 바꾸려면 명시적 평균회귀 항으로 대체 후 백테스트로 검증할 것.
         momentum_drift = weighted_mom * 0.08 * trend_direction
     elif is_trending:
         momentum_drift = weighted_mom * 0.05
@@ -2420,6 +2449,11 @@ def _load_stock_for_score_sync(ticker: str, end_day: str) -> tuple[pd.DataFrame,
     if raw.empty:
         raise ValueError("no data")
     df = _standardize_ohlcv(raw)
+    # _clean_ohlcv가 없으면 /api/stock과 입력이 달라진다: 컬럼별 독립 dropna로
+    # 배열 길이가 어긋나 IndexError가 나거나(특정 컬럼만 NaN인 행), 거래정지일
+    # close=0이 마지막 행이면 근접도 계산에서 ZeroDivision — 종목이 조용히 탈락했다.
+    # 같은 종목의 추천 score와 차트 score가 달라지는 원인이기도 했다.
+    df = _clean_ohlcv(df)
     # 유동성 필터: 최근 20일 평균 거래량 < 10,000이면 분석 무의미
     vol_series = pd.to_numeric(df["volume"], errors="coerce")
     if len(vol_series) >= 20 and float(vol_series.tail(20).mean()) < 10000:
@@ -2532,7 +2566,10 @@ async def get_stock_data(
     2. 스크롤 추가 로드 (before_date 있음): before_date 이전 days_back일 데이터만 반환 (점수 없음)
     """
     try:
-        ticker, stock_name = _resolve_ticker(ticker_or_name)
+        # executor 경유가 필수 — _resolve_ticker 내부의 _load_listing은 네트워크 I/O라
+        # 이벤트 루프에서 직접 부르면 리스팅 캐시(1시간 TTL) 만료 직후 첫 요청마다
+        # 서버 전체(/api/ping 포함)가 fdr 응답 시간만큼 정지한다.
+        ticker, stock_name = await _run_with_timeout(_resolve_ticker, ticker_or_name)
 
         if before_date:
             # ── 스크롤 추가 로드 모드: 지정 날짜 이전 데이터만 반환 ──
@@ -2567,9 +2604,11 @@ async def get_stock_data(
             start = _yyyymmdd(start_d)
             end = _yyyymmdd(end_d)
 
+            # 수급은 점수에서 최근 5/20일만 쓰므로 40일이면 충분 (1년치 조회는 불필요한 부하)
+            flow_start = _yyyymmdd(end_d - timedelta(days=40))
             raw, investor_flow = await asyncio.gather(
                 _fetch_ohlcv(start, end, ticker),
-                _fetch_investor_flow(ticker, start, end),
+                _fetch_investor_flow(ticker, flow_start, end),
             )
             if raw.empty:
                 return {"error": "데이터가 없거나 종목 코드/이름이 잘못되었습니다."}
@@ -2606,7 +2645,8 @@ async def get_stock_data(
             }
     except asyncio.TimeoutError:
         logger.warning("주가 데이터 조회 타임아웃: %s", ticker_or_name)
-        return {"error": f"주가 데이터 조회 시간 초과 ({PYKRX_TIMEOUT_SEC}초). 잠시 후 다시 시도해주세요."}
+        # 초 수를 표기하지 않는다 — 실제 타임아웃은 경로마다 다르다(청크 보정 80초 등)
+        return {"error": "주가 데이터 조회 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."}
     except Exception as e:
         logger.exception("데이터 조회 실패")
         return {"error": f"데이터 조회 중 오류 발생: {str(e)}"}
@@ -2687,18 +2727,39 @@ async def get_recommendations(limit: int = Query(10, ge=1, le=50)):
                     "last_updated": RECOMMEND_CACHE["last_updated"].strftime("%Y-%m-%d %H:%M:%S"),
                 }
 
-    # 2. 캐시가 없거나 만료 → 새로 계산 (lock 밖에서 실행해 다른 요청 차단 방지)
+    # 2. 캐시가 없거나 만료 → 새로 계산.
+    # lock을 계산 내내 잡는다 (스탬피드 방지). 계산은 executor에서 await되므로 lock을
+    # 잡아도 이벤트 루프는 안 막힌다 — 동시 요청은 lock에서 기다렸다가 재확인 시
+    # 갓 채워진 캐시를 그대로 받는다. 예전처럼 lock 밖에서 계산하면 만료 직후 동시
+    # 요청 N개가 각자 220종목 스캔(수 분)을 시작해 executor 4스레드를 전부 점유하고,
+    # 다른 모든 pykrx 호출(/api/stock 등)이 큐에서 대기하다 타임아웃됐다.
     try:
-        day = await _best_business_day()
-        listing = _load_listing()
-        ranked = await _run_with_timeout(
-            _compute_recommendations_sync, day, listing, RECOMMEND_SAMPLE_SIZE,
-            timeout=PYKRX_TIMEOUT_SEC * RECOMMEND_SAMPLE_SIZE // 10,  # 전체 계산은 넉넉하게
-        )
-
         async with _cache_lock:
+            # 이중 확인: lock을 기다리는 동안 앞선 요청이 채워놨을 수 있다
+            if RECOMMEND_CACHE["data"] is not None and RECOMMEND_CACHE["last_updated"] is not None:
+                if (datetime.now() - RECOMMEND_CACHE["last_updated"]).total_seconds() < 3600:
+                    cached_ranked = RECOMMEND_CACHE["data"]
+                    return {
+                        "as_of": RECOMMEND_CACHE["as_of"],
+                        "count": len(cached_ranked),
+                        "top": cached_ranked[:limit],
+                        "cached": True,
+                        "last_updated": RECOMMEND_CACHE["last_updated"].strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+
+            day = await _best_business_day()
+            # executor 경유 — 이벤트 루프에서 직접 부르면 리스팅 캐시 만료 시 서버 전체 정지
+            listing = await _run_with_timeout(_load_listing)
+            ranked = await _run_with_timeout(
+                _compute_recommendations_sync, day, listing, RECOMMEND_SAMPLE_SIZE,
+                timeout=PYKRX_TIMEOUT_SEC * RECOMMEND_SAMPLE_SIZE // 10,  # 전체 계산은 넉넉하게
+            )
+
+            # 캐시 시각은 계산 '완료' 시점 — 시작 시점(now)을 쓰면 계산에 10분 걸릴 때
+            # 캐시 수명이 그만큼 깎인다
+            done = datetime.now()
             RECOMMEND_CACHE["data"] = ranked
-            RECOMMEND_CACHE["last_updated"] = now
+            RECOMMEND_CACHE["last_updated"] = done
             RECOMMEND_CACHE["as_of"] = day
 
         return {
@@ -2706,7 +2767,7 @@ async def get_recommendations(limit: int = Query(10, ge=1, le=50)):
             "count": len(ranked),
             "top": ranked[:limit],
             "cached": False,
-            "last_updated": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "last_updated": done.strftime("%Y-%m-%d %H:%M:%S"),
         }
     except asyncio.TimeoutError:
         logger.warning("추천 계산 타임아웃")
@@ -2817,7 +2878,8 @@ async def predict_stock(
 ):
     try:
         try:
-            ticker, stock_name = _resolve_ticker(ticker_or_name)
+            # executor 경유 — /api/stock과 같은 이유 (이벤트 루프 블로킹 방지)
+            ticker, stock_name = await _run_with_timeout(_resolve_ticker, ticker_or_name)
         except Exception:
             ticker = ticker_or_name
             stock_name = ticker_or_name
@@ -2827,10 +2889,13 @@ async def predict_stock(
         start_str = _yyyymmdd(start_d)
         end_str = _yyyymmdd(end_d)
 
+        # 수급은 점수에서 최근 5/20일만 쓰므로 40일이면 충분 — 1년치 조회는 pykrx에 불필요한 부하
+        flow_start = _yyyymmdd(end_d - timedelta(days=40))
+
         raw, market_raw, investor_flow = await asyncio.gather(
             _fetch_ohlcv(start_str, end_str, ticker),
             _fetch_index(start_str, end_str, "KS11"),
-            _fetch_investor_flow(ticker, start_str, end_str),
+            _fetch_investor_flow(ticker, flow_start, end_str),
         )
         if raw.empty:
             return {"error": "데이터 없음"}
@@ -3019,7 +3084,7 @@ async def predict_stock(
 
     except asyncio.TimeoutError:
         logger.warning("예측 데이터 조회 타임아웃: %s", ticker_or_name)
-        return {"error": f"예측 데이터 조회 시간 초과 ({PYKRX_TIMEOUT_SEC}초). 잠시 후 다시 시도해주세요."}
+        return {"error": "예측 데이터 조회 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."}
     except Exception as e:
         logger.exception("예측 실패")
         return {"error": f"예측 중 오류 발생: {str(e)}"}

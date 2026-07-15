@@ -151,6 +151,10 @@ class TickerSummary:
 SR_TOUCH_BAND = 0.005   # 레벨의 ±0.5% 안에 들어오면 '닿았다'
 SR_MOVE_PCT = 0.02      # 2% 이탈해야 bounce/break로 인정 (노이즈 배제)
 
+# 운영이 지지/저항·점수 계산에 넘기는 봉 수 (365일 ≈ 245영업일).
+# 백테스트도 이 길이로 맞춰야 _support_resistance가 운영과 같은 레벨을 낸다.
+PROD_LOOKBACK = 245
+
 
 def evaluate_level(
     df: pd.DataFrame,
@@ -275,17 +279,25 @@ def predict_at(df_slice: pd.DataFrame, horizons: list[int],
     if len(df_slice) < 60:  # 기본 지표 계산에 필요한 최소량
         return None
 
-    close_values = pd.to_numeric(df_slice["close"], errors="coerce").dropna().to_numpy(dtype=float)
-    high_values = pd.to_numeric(df_slice["high"], errors="coerce").dropna().to_numpy(dtype=float)
-    low_values = pd.to_numeric(df_slice["low"], errors="coerce").dropna().to_numpy(dtype=float)
-    vol_values = pd.to_numeric(df_slice["volume"], errors="coerce").dropna().to_numpy(dtype=float)
+    # 운영과 동일 조건으로 지지/저항·점수를 계산한다.
+    # 운영(/api/stock, _load_stock_for_score_sync)은 365일(≈245봉)만 넘기는데,
+    # 백테스트는 history_days=730(≈479봉)을 통째로 슬라이스한다. _support_resistance는
+    # lookback에 직접 의존하므로(recency 분모 = lookback-1, tolerance의 price_range =
+    # 전체 구간 고저) 길이가 다르면 운영과 다른 레벨이 나온다. 마지막 PROD_LOOKBACK
+    # 봉으로 잘라 조건을 맞춘다. anchor 개수·예측 로직에는 영향 없다.
+    prod_slice = df_slice.iloc[-PROD_LOOKBACK:] if len(df_slice) > PROD_LOOKBACK else df_slice
+
+    close_values = pd.to_numeric(prod_slice["close"], errors="coerce").dropna().to_numpy(dtype=float)
+    high_values = pd.to_numeric(prod_slice["high"], errors="coerce").dropna().to_numpy(dtype=float)
+    low_values = pd.to_numeric(prod_slice["low"], errors="coerce").dropna().to_numpy(dtype=float)
+    vol_values = pd.to_numeric(prod_slice["volume"], errors="coerce").dropna().to_numpy(dtype=float)
 
     try:
         support, resistance = _support_resistance(
             close_values, high_values, low_values, vol_values, max_lines=1
         )
-        box = _detect_box_range(df_slice)
-        score, _signals, internals = _unified_score(df_slice, support, resistance, box)
+        box = _detect_box_range(prod_slice)
+        score, _signals, internals = _unified_score(prod_slice, support, resistance, box)
     except Exception:
         return None
 
