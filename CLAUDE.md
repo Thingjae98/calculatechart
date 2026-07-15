@@ -65,16 +65,19 @@
 
 ### 백엔드 워밍업 (keepwarm.yml)
 - Render 무료 플랜은 15분 무활동 시 슬립 → 콜드스타트 30~60초.
-- `keepwarm.yml`이 **장 시간대(07:00~16:00 KST) 10분마다** `/api/ping` 호출로 웜 유지.
+- `keepwarm.yml`이 **06:00~16:00 KST 10분마다** `/api/ping` 호출로 웜 유지.
+  (06시 시작인 이유: 브리핑이 06:07 발화 + 가족이 06:30에 읽음)
 - 백엔드 URL 기본값 `https://calculatechart.onrender.com`. 바꾸려면 Settings → Secrets and variables → Actions → **Variables 탭**(Secrets 아님)에 `BACKEND_URL` 지정.
 - GitHub cron은 best-effort(수 분 지연 가능) — 더 확실히 하려면 UptimeRobot/cron-job.org 같은 외부 핑 서비스 병행.
 
 ### 브리핑 데이터 흐름 (정적 JSON + 스케줄 생성)
 ```
-매일 07:30 KST (22:30 UTC, briefing.yml cron) — 8시 전 준비 완료 목표
+매일 06:07 KST (21:07 UTC, briefing.yml cron) — 06:30 전 준비 완료 목표
+  ('7분'은 정각 회피: GitHub 스케줄은 정각에 몰려 50분+ 밀린 실측 사례 있음)
+  → 워크플로우가 백엔드에서 시총 상위 5+5(지지/저항 포함) 선조회 (top-caps)
   → claude-code-action 이 .github/briefing/prompt.md 지침대로 웹 조사·분석
-  → frontend/public/briefings/<date>.json + latest.json 저장
-  → workflow가 git commit & push
+  → merge-top-caps.mjs가 숫자를 백엔드 계산값으로 덮어씀 (모델은 코멘트만)
+  → 실제 생성 시각 스탬프 → git commit & push
   → Vercel 자동 배포
   → 앱이 /briefings/latest.json fetch (SW NetworkFirst 캐시)
 ```
@@ -114,7 +117,14 @@ cd frontend && npm run build
 
 ## 주의 사항
 
-- `pykrx`는 동기 라이브러리 → `ThreadPoolExecutor`로 감싸서 비동기 호출 + 타임아웃 적용
+- **pykrx의 KRX 직접 조회는 죽었다** (2026-05경 KRX API 변경 — 1.2.8이 로그인 체계를
+  추가한 배경. 한국 IP에서도 실패). `get_market_cap_by_ticker` 등 사용 금지.
+  시총/시장구분/거래대금은 **fdr StockListing의 marcap/market/amount** (_load_listing이
+  보존)가 유일한 소스. requirements는 pykrx==1.2.7 고정 — 올리려면 스테이징 검증 필수.
+- 코스닥 시장 필터는 **prefix 매칭** — 시총 상위가 'KOSDAQ GLOBAL' 세그먼트 소속.
+- `pykrx`는 동기 라이브러리 → `ThreadPoolExecutor`로 감싸서 비동기 호출 + 타임아웃 적용.
+  **네트워크 I/O가 있는 동기 함수(_load_listing, _resolve_ticker)를 async 핸들러에서
+  직접 부르지 말 것** — 이벤트 루프가 정지해 서버 전체가 멈춘다 (2026-07-15 수정 완료).
 - `pandas_ta`는 설치 실패 가능 → import 실패 시 수동 RSI 계산으로 폴백 (Wilder's EMA 방식 사용)
 - 종목 리스트(`_load_listing`)는 fdr 우선 + pykrx 폴백, 1시간 캐시 + startup 사전 로드
 - 추천 종목은 1시간 메모리 캐시. 캐시 없으면 220종목 순회하므로 수 분 소요
