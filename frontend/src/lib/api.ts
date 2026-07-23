@@ -321,7 +321,11 @@ export type StockNow = {
   is_etf: boolean
   /** 조회를 누른 시각 'YYYY-MM-DD HH:mm' */
   checked_at: string
-  /** 데이터 기준 영업일 'YYYY-MM-DD' — 장중엔 시세가 지연 반영된다 */
+  /**
+   * 데이터 기준 영업일 'YYYY-MM-DD'. 장중이면 당일 날짜가 들어오고 값도 갱신된다
+   * (2026-07-23 10:42 실측: 75초 간격 조회에서 종가·거래량 모두 변동).
+   * 다만 체결 즉시 값은 아니므로 화면에는 '몇 분 전 시세일 수 있음'으로 표기한다.
+   */
   as_of: string
   close: string
   close_raw: number

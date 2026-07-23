@@ -192,8 +192,8 @@ function StockNowResult({ data }: { data: StockNowData }) {
       </div>
 
       <p className="snStamp">
-        {data.checked_at} 조회 · {data.as_of} 종가 기준
-        <span className="snStampNote">(장중에는 시세가 20분쯤 늦게 반영돼요)</span>
+        {data.checked_at} 조회 · {data.as_of} 기준
+        <span className="snStampNote">(장중에는 몇 분 전 시세일 수 있어요)</span>
       </p>
 
       <section className="snSummary">
