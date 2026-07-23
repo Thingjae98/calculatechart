@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from functools import partial
 
 from fastapi import FastAPI, Query
@@ -3058,7 +3058,10 @@ def _fetch_news_sync(query: str, limit: int = 5) -> list[dict]:
 
     url = (
         "https://openapi.naver.com/v1/search/news.json?"
-        + urllib.parse.urlencode({"query": query, "display": limit, "sort": "date"})
+        # sort=date(최신순)는 '삼성전자'가 한 글자라도 스친 지역·대학 기사까지 끌어온다
+        # (실측: 김위상 의원 임금격차 토론회, 인하대 계약학과 기사가 상위에 올라왔다).
+        # sim(정확도순)이 종목 관련 기사에 훨씬 가깝다.
+        + urllib.parse.urlencode({"query": query, "display": limit, "sort": "sim"})
     )
     req = urllib.request.Request(url, headers={
         "X-Naver-Client-Id": NAVER_CLIENT_ID,
@@ -3087,6 +3090,129 @@ def _fetch_news_sync(query: str, limit: int = 5) -> list[dict]:
 
 
 
+# 오늘 아침 브리핑. 프론트가 읽는 정적 JSON을 백엔드도 GitHub raw로 읽는다
+# (public 저장소라 인증 불필요). 모달이 "아침에 이렇게 봤는데 지금은 어떤지"를
+# 말하려면 백엔드가 브리핑 내용을 알아야 한다.
+_BRIEFING_URL = (
+    "https://raw.githubusercontent.com/Thingjae98/calculatechart"
+    "/main/frontend/public/briefings/latest.json"
+)
+_BRIEFING_CACHE: dict = {"data": None, "at": None}
+_BRIEFING_CACHE_TTL = 1800  # 30분 — 브리핑은 하루 1회 갱신이라 넉넉하다
+
+
+def _fetch_briefing_sync() -> dict | None:
+    """오늘 아침 브리핑 조회. 실패하면 None (모달은 브리핑 없이도 성립한다)."""
+    now = datetime.now()
+    if _BRIEFING_CACHE["data"] is not None and _BRIEFING_CACHE["at"] is not None:
+        if (now - _BRIEFING_CACHE["at"]).total_seconds() < _BRIEFING_CACHE_TTL:
+            return _BRIEFING_CACHE["data"]
+
+    import json as _json
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            _BRIEFING_URL, headers={"User-Agent": "calculatechart/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = _json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning("브리핑 조회 실패 (브리핑 비교 없이 진행): %s", e)
+        return None
+
+    _BRIEFING_CACHE["data"] = data
+    _BRIEFING_CACHE["at"] = now
+    return data
+
+
+def _briefing_context(brief: dict | None, ticker: str, name: str) -> str:
+    """
+    브리핑에서 이 종목과 관련된 대목만 뽑아 프롬프트용 텍스트로 만든다.
+
+    통째로 넣지 않는 이유: 브리핑 전문은 길고 대부분 이 종목과 무관해서,
+    모델이 엉뚱한 대목을 끌어다 붙인다. 아침 판단과 지금을 비교하는 데
+    필요한 것만 추린다.
+    """
+    if not brief:
+        return ""
+    parts: list[str] = []
+    date_str = brief.get("date") or ""
+
+    dom = brief.get("domestic") or {}
+    if dom.get("direction"):
+        parts.append(f"국내 시장 방향 전망: {dom['direction']}")
+    if dom.get("levels"):
+        parts.append(f"관건: {dom['levels']}")
+
+    g = brief.get("global") or {}
+    idx = ", ".join(
+        f"{q.get('name')} {q.get('change_pct')}%"
+        for q in (g.get("indices") or []) if q.get("name")
+    )
+    if idx:
+        parts.append(f"간밤 미국 증시: {idx}")
+    sox = g.get("sox") or {}
+    if sox.get("change_pct") is not None:
+        parts.append(f"필라델피아 반도체지수: {sox['change_pct']}%")
+
+    # 반도체 투톱은 브리핑에 개별 전망이 있다 — 그 종목이면 반드시 넣는다
+    semis = brief.get("semis") or {}
+    for key, tk in (("samsung", "005930"), ("hynix", "000660")):
+        s = semis.get(key) or {}
+        if tk == ticker and s:
+            bits = [b for b in (s.get("direction"), s.get("momentum"), s.get("strategy")) if b]
+            if bits:
+                parts.append(f"오늘 아침 {name}에 대한 전망: " + " / ".join(bits))
+
+    if not parts:
+        return ""
+    return f"[오늘 아침({date_str}) 브리핑에서 이렇게 봤다]\n" + "\n".join(f"- {p}" for p in parts)
+
+
+# 신호 카드 라벨에 남아 있는 전문 용어를 쉬운 말로 바꾼다.
+#
+# _unified_score의 신호 문구는 50곳 가까이 되고 일부에 '일목균형표', 'RSI' 같은
+# 용어가 그대로 박혀 있다 — CLAUDE.md의 "전문 용어 금지" 원칙 위반이며, 실제로
+# 모달에 "일목균형표 약세 ☁️📉", "보통 상태 (RSI 45)"가 노출됐다. 근본 수정은
+# 신호 문구 전체를 손봐야 하므로(차트 화면과 공유) 별도 작업으로 두고, 여기서는
+# 모달에 나가는 것만 치환한다.
+_JARGON_SUB = [
+    ("일목균형표 강세", "여러 흐름이 위쪽"),
+    ("일목균형표 약세", "여러 흐름이 아래쪽"),
+    ("일목균형표", "종합 흐름"),
+    ("구름 위", "안정권 위"),
+    ("구름 아래", "불안권 아래"),
+    ("전환선", "단기선"),
+    ("기준선", "중기선"),
+    ("다이버전스", "가격과 힘의 엇갈림"),
+    ("스토캐스틱", "과열·침체 지표"),
+    ("볼린저밴드", "변동폭 띠"),
+    ("볼린저", "변동폭"),
+    ("MACD", "추세 힘"),
+    ("OBV", "매집 흐름"),
+]
+
+
+def _plainify(text: str) -> str:
+    """전문 용어 치환 + 'RSI 45' 같은 괄호 수치 제거"""
+    import re
+    if not text:
+        return text
+    out = text
+    for a, b in _JARGON_SUB:
+        out = out.replace(a, b)
+    # "(RSI 45)", "(RSI 71.2)" 같은 괄호 표기를 통째로 지운다
+    out = re.sub(r"\s*\(\s*RSI[^)]*\)", "", out)
+    return out.strip()
+
+
+def _plainify_signals(signals: list[dict]) -> list[dict]:
+    return [
+        {**s, "label": _plainify(s.get("label", "")), "desc": _plainify(s.get("desc", ""))}
+        for s in signals
+    ]
+
+
 # AI 요약 캐시.
 # 무료 티어는 하루 250회(flash)라 한도가 유한하다. 가족이 같은 종목을 몇 번씩 눌러도
 # 시세가 안 바뀌었으면 같은 답이 나오므로 다시 부를 이유가 없다.
@@ -3111,6 +3237,9 @@ _AI_SUMMARY_SYSTEM = """너는 주식 차트를 처음 보는 가족(부모님·
 - 주어진 숫자와 뉴스에서 확인되는 것만 말하라. 없는 수치나 사실을 지어내지 마라.
 - "사세요/파세요" 같은 투자 권유를 하지 마라. 상황 설명과 주의점까지만.
 - 뉴스가 비어 있으면 뉴스 이야기를 꺼내지 말고 숫자만으로 설명하라.
+- 종목과 상관없어 보이는 뉴스는 무시하라. 억지로 엮지 마라.
+- **'확정 사실'로 주어진 등락 방향은 절대 뒤집지 마라.** 올랐다고 주어졌으면
+  올랐다고, 내렸다고 주어졌으면 내렸다고 써라. 이걸 틀리는 게 최악의 실패다.
 - 존댓말로, 담백하게.
 
 세 칸을 채워라:
@@ -3143,11 +3272,38 @@ def _ai_summary_sync(payload: dict) -> dict | None:
     import urllib.request
 
     news_lines = "\n".join(f"- {n['title']}" for n in payload["news"]) or "(관련 뉴스 없음)"
+
+    # 등락 방향은 모델이 판단하게 두지 않는다.
+    #
+    # 2026-07-23 실측: change_pct를 "전일 대비: 2.88%"처럼 부호 없는 맨숫자로 넘겼더니
+    # 모델이 "2.88% 정도 떨어졌습니다"라고 정반대로 썼다. 화면 숫자는 +2.88%(상승)였다.
+    # 가족에게 방향을 거꾸로 알려주는 건 이 앱에서 가장 나쁜 실패다.
+    # 그래서 방향은 우리가 확정한 한국어 문장으로 못 박아 넘기고, 모델에게는
+    # 그 사실을 뒤집지 말라고 명시한다. 모델의 몫은 '해석'이지 '판정'이 아니다.
+    pct = payload["change_pct"]
+    if pct is None:
+        move_fact = "오늘 등락은 확인되지 않았다"
+    elif pct > 0:
+        move_fact = f"오늘 전일 대비 {abs(pct)}% 상승했다 (올랐다)"
+    elif pct < 0:
+        move_fact = f"오늘 전일 대비 {abs(pct)}% 하락했다 (내렸다)"
+    else:
+        move_fact = "오늘 전일 대비 변동이 없다 (보합)"
+
+    brief_block = payload.get("briefing_context") or ""
+    brief_task = (
+        "\n- detail 안에서 아침 브리핑의 전망과 지금 실제 흐름을 한 번 비교해줘라. "
+        "전망대로 가고 있으면 그렇다고, 어긋났으면 어떻게 어긋났는지 한 문장으로."
+        if brief_block else ""
+    )
+
     prompt = f"""아래는 {payload['name']}({payload['ticker']})의 {payload['as_of']} 기준 상황이다.
 
-[숫자]
+[확정 사실 — 반드시 이대로 서술하라. 다르게 해석하거나 뒤집지 마라]
+{move_fact}
 현재가: {payload['close']}원
-전일 대비: {payload['change_pct']}%
+
+[참고 숫자]
 지지선(여기서 버티는 가격): {payload['support'] or '탐지 실패'}
 저항선(여기서 막히는 가격): {payload['resistance'] or '탐지 실패'}
 종합 점수: {payload['score']}점 (50점이 보통, 높을수록 흐름이 좋다는 뜻)
@@ -3157,8 +3313,10 @@ def _ai_summary_sync(payload: dict) -> dict | None:
 
 [최근 뉴스]
 {news_lines}
+{chr(10) + brief_block if brief_block else ''}
 
-이 종목이 지금 어떤 상황인지 설명해줘."""
+이 종목이 지금 어떤 상황인지 설명해줘.
+- headline은 위 '확정 사실'의 방향(상승/하락/보합)과 반드시 일치해야 한다.{brief_task}"""
 
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -3326,15 +3484,18 @@ def _stock_now_numbers_sync(ticker: str, skip_flow: bool) -> dict:
     last = float(closes[-1])
     prev = float(closes[-2])
     return {
-        "as_of": str(df["time"].iloc[-1]),
+        # [:10] — time이 Timestamp면 '2026-07-23 00:00:00'으로 찍힌다.
+        # 일봉이라 시각 부분은 언제나 00:00:00이고 화면에 노출할 의미가 없다.
+        "as_of": str(df["time"].iloc[-1])[:10],
         "close": f"{int(round(last)):,}",
         "close_raw": last,
         "change_pct": round((last - prev) / prev * 100, 2) if prev else None,
         "support": f"{int(round(support[0])):,}" if support else None,
         "resistance": f"{int(round(resistance[0])):,}" if resistance else None,
         "score": score,
-        # 신호는 이미 쉬운 말로 쓰여 있다. 화면이 복잡해지지 않게 상위 4개만.
-        "signals": signals[:4],
+        # 화면이 복잡해지지 않게 상위 4개만. _plainify_signals로 남은 전문 용어를
+        # 걷어낸다 — 원본 문구에 '일목균형표', 'RSI 45'가 그대로 박혀 있다.
+        "signals": _plainify_signals(signals[:4]),
     }
 
 
@@ -3346,7 +3507,9 @@ async def get_stock_now(ticker_or_name: str):
     주의: fdr 일봉은 장중 당일 봉이 지연 반영된다(체결 즉시가 아님).
     as_of가 데이터 기준일, checked_at이 조회 시각이다.
     """
-    checked_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    # KST 고정. Render 컨테이너는 UTC로 돌아서 datetime.now()를 그대로 쓰면
+    # 오전 10:49에 "01:49 조회"로 찍힌다(실측). 사용자는 전원 한국에 있다.
+    checked_at = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
     try:
         ticker, name = await _run_with_timeout(_resolve_ticker, ticker_or_name)
     except asyncio.TimeoutError:
@@ -3358,11 +3521,12 @@ async def get_stock_now(ticker_or_name: str):
     is_etf = market.upper().startswith("ETF")
 
     try:
-        # 숫자와 뉴스는 서로 무관하므로 동시에 — 모달 대기 시간을 줄이는 유일한 지점이다.
-        numbers, news = await asyncio.gather(
+        # 셋은 서로 무관하므로 동시에 — 모달 대기 시간을 줄이는 유일한 지점이다.
+        numbers, news, brief = await asyncio.gather(
             _run_with_timeout(_stock_now_numbers_sync, ticker, is_etf,
                               timeout=PYKRX_TIMEOUT_SEC * 3),
             _run_with_timeout(_fetch_news_sync, name, 5, timeout=15),
+            _run_with_timeout(_fetch_briefing_sync, timeout=12),
         )
     except asyncio.TimeoutError:
         return {"error": "조회 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."}
@@ -3380,7 +3544,8 @@ async def get_stock_now(ticker_or_name: str):
         summary = await _run_with_timeout(
             _ai_summary_sync,
             {**numbers, "ticker": ticker, "name": name, "news": news,
-             "signal_text": signal_text},
+             "signal_text": signal_text,
+             "briefing_context": _briefing_context(brief, ticker, name)},
             timeout=25,
         )
         if summary:
