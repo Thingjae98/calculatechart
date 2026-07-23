@@ -40,6 +40,7 @@
 | `backend/main.py` | 전체 백엔드 (엔드포인트, 기술적 분석, 예측 캔들, 추천) |
 | `frontend/src/App.tsx` | **셸**: 스티키 내비 + 브리핑(상단) + 차트분석(하단) 레이아웃 |
 | `frontend/src/components/Briefing.tsx` | **데일리 마켓 브리핑** UI (4개 섹션, 정적 JSON 렌더) |
+| `frontend/src/components/StockNow.tsx` | **종목 현재 상황** 모달 (검색 시점 기준 스냅샷 + 분석중 오버레이) |
 | `frontend/src/components/ChartAnalysis.tsx` | 차트 분석 화면 전체 (구 App.tsx 본문 — 검색/차트/예측/추천) |
 | `frontend/src/components/CandleChart.tsx` | 차트 컴포넌트 (캔들+거래량+이평선+예측+스크롤 로드) |
 | `frontend/src/lib/api.ts` | 주가 API 클라이언트 + TypeScript 타입 정의 |
@@ -86,6 +87,43 @@
 - 스키마 변경 시 **세 곳을 함께 수정**: `lib/briefing.ts`(타입) · `Briefing.tsx`(렌더) · `.github/briefing/prompt.md`(생성 스키마).
 - 수동 생성/테스트: GitHub Actions에서 `Daily Market Briefing` 워크플로우 `Run workflow`(workflow_dispatch).
 - **필수 시크릿**: `CLAUDE_CODE_OAUTH_TOKEN` (기존 claude.yml과 공용).
+
+### 🔎 종목 현재 상황 (2026-07 추가)
+
+스티키 내비의 `🔎 종목 현재 상황` 버튼 → 모달 → 종목/ETF 검색 → **누른 그 시각 기준** 스냅샷.
+브리핑(하루 1회 정적 JSON)이 답하지 못하는 "지금 이 종목은?"을 메운다.
+
+```
+버튼 → 모달 검색 → GET /api/stock/{종목}/now
+  → 숫자   : _stock_now_numbers_sync (현재가·등락률·지지/저항·점수·신호카드)
+  → 요약   : _ai_summary_sync(Gemini 무료) → 실패 시 _plain_summary(규칙)로 폴백
+  → 뉴스   : _fetch_news_sync — 네이버 검색API (무료, 하루 25,000회)
+```
+
+- **유료 LLM은 쓰지 않는다.** Gemini 무료 티어만 쓰고(`GEMINI_API_KEY`), 한도 초과·오류·
+  키 없음 어느 쪽이든 `_plain_summary`(규칙 기반)로 내려앉는다 → 요약 칸이 비는 경우는
+  존재하지 않는다. 응답의 `summary_source`가 `'ai' | 'rule'`로 출처를 알려주고 화면에
+  표시한다. Claude Max 구독의 `CLAUDE_CODE_OAUTH_TOKEN`은 Actions 전용이라 여기 못 쓴다.
+- **AI 요약은 캐시한다** (`_AI_SUMMARY_CACHE`, 키 = 티커+영업일+종가+뉴스개수).
+  무료 티어가 flash 기준 하루 250회라 같은 종목 반복 클릭으로 소진되면 안 된다.
+- `_plain_summary`의 점수 구간 문구는 **백테스트 결과를 따른다** (아래 점수 구간별 수익률 표):
+  75+는 7일 -2.15% / 30일 +6.91%라 "단기 주의", 50~60이 양쪽 모두 최고라 "가장 무난".
+  점수 튜닝 시 이 문구도 함께 고칠 것.
+- **모달은 `createPortal`로 body에 붙인다.** 버튼이 `.topNav` 안에 있는데 `.topNav`에는
+  `backdrop-filter`가 걸려 있고, 이건 자손의 `position:fixed`에 대한 컨테이닝 블록을
+  만든다 — 포털 없이 두면 모달이 화면이 아니라 내비 박스(60px) 기준으로 잡혀 상단에
+  짓눌려 잘린다. z-index로는 해결되지 않는 문제다(기준점 자체가 틀림).
+- **ETF 지원**: `_load_listing`이 `fdr.StockListing('ETF/KR')`을 병합한다(`market='ETF'`).
+  ETF는 외인·기관 수급 점수를 건너뛴다(설정/환매 구조라 의미가 다름). 시총 상위·추천
+  스캔은 market prefix / marcap 결측으로 자연히 제외되므로 별도 필터가 없다.
+- **환경변수**(전부 선택): `NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET`(뉴스),
+  `GEMINI_API_KEY`(AI 요약), `GEMINI_MODEL`(기본 `gemini-2.5-flash`, 사용량 늘면
+  `gemini-2.5-flash-lite`가 하루 1,000회). 없으면 그 계층만 빠지고 나머지는 그대로
+  동작한다 — 키를 필수로 만들면 백엔드 설정 하나에 기능 전체가 죽는다.
+- **한계**: fdr 일봉은 장중 당일 봉이 지연 반영된다(체결 즉시 아님). 응답의 `checked_at`은
+  조회 시각, `as_of`는 데이터 기준일이며 화면에 둘 다 표시한다.
+- keepwarm이 06:00~16:00만 도므로 **장 마감 후 첫 클릭은 콜드스타트 30~60초**. 모달
+  오버레이가 8초 뒤 "서버를 깨우는 중" 문구로 바뀐다.
 
 ### PWA
 - `vite-plugin-pwa`(generateSW) + 자동 SW 등록(`registerType: 'autoUpdate'`).

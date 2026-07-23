@@ -296,3 +296,61 @@ export async function fetchRecommendations(limit = 10): Promise<RecommendationIt
 
   return body.top.filter(isRecommendationItem)
 }
+
+// ── '종목 현재 상황' 모달 ──────────────────────────────────
+// 브리핑(정적 JSON, 하루 1회)과 달리 버튼을 누른 시각에 백엔드가 계산한다.
+// 요약(summary)은 LLM이 아니라 백엔드 규칙이 만든다 — 같은 입력이면 같은 문장.
+
+export type StockNowSignal = {
+  type: 'positive' | 'negative' | 'neutral'
+  label: string
+  desc?: string
+}
+
+export type StockNowNews = {
+  title: string
+  summary: string
+  link: string
+  published: string
+}
+
+export type StockNow = {
+  ticker: string
+  name: string
+  market: string
+  is_etf: boolean
+  /** 조회를 누른 시각 'YYYY-MM-DD HH:mm' */
+  checked_at: string
+  /** 데이터 기준 영업일 'YYYY-MM-DD' — 장중엔 시세가 지연 반영된다 */
+  as_of: string
+  close: string
+  close_raw: number
+  change_pct: number | null
+  support: string | null
+  resistance: string | null
+  score: number
+  signals: StockNowSignal[]
+  news: StockNowNews[]
+  summary: { headline: string; detail: string; caution: string }
+  /** 'ai' = Gemini가 뉴스까지 읽고 씀 / 'rule' = 숫자만 보고 규칙으로 만듦 */
+  summary_source: 'ai' | 'rule'
+  /** false면 네이버 API 키가 없어 뉴스 칸이 비어 있다는 뜻 */
+  news_enabled: boolean
+}
+
+export async function fetchStockNow(query: string): Promise<StockNow> {
+  let res: Response
+  try {
+    res = await fetch(buildApiUrl(`/api/stock/${encodeURIComponent(query.trim())}/now`), {
+      method: 'GET',
+    })
+  } catch {
+    throw new Error('서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.')
+  }
+  const body = await parseJsonOrThrow<StockNow & { error?: string }>(res)
+  if (!res.ok) {
+    throw new Error(body?.error ?? `서버 오류가 발생했습니다 (${res.status}). 잠시 후 다시 시도해주세요.`)
+  }
+  if (body?.error) throw new Error(body.error)
+  return body
+}

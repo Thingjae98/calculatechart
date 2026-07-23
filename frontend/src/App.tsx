@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Briefing } from './components/Briefing'
 import { ChartAnalysis } from './components/ChartAnalysis'
 import { InstallButton } from './components/InstallButton'
+import { StockNow } from './components/StockNow'
 import { ThemeToggle } from './components/ThemeToggle'
 
 type Section = 'briefing' | 'chart'
@@ -42,6 +43,7 @@ function App() {
       <nav className="topNav">
         <span className="topNavBrand">명재가족</span>
         <div className="topNavTabs">
+          <StockNow />
           <ThemeToggle />
           <InstallButton />
           <button

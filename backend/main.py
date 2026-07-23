@@ -27,6 +27,20 @@ RECOMMEND_SAMPLE_SIZE = int(os.environ.get("RECOMMEND_SAMPLE_SIZE", "220"))
 # pykrx 호출 타임아웃 (초)
 PYKRX_TIMEOUT_SEC = int(os.environ.get("PYKRX_TIMEOUT_SEC", "30"))
 
+# ── '종목 현재 상황' 모달용 설정 ──
+# 셋 다 선택 사항이다. 없으면 그 계층만 빠지고 나머지는 그대로 동작한다.
+#
+# 네이버 검색 API — 뉴스 제목. 무료, 하루 25,000회.
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID", "").strip()
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+# Gemini — 뉴스까지 읽고 쓰는 요약. 무료 티어(카드 등록 불필요):
+#   gemini-2.5-flash      10 RPM / 250회 하루
+#   gemini-2.5-flash-lite 15 RPM / 1,000회 하루  ← 사용량이 늘면 이쪽으로
+# 유료 LLM은 쓰지 않는다. 무료 한도를 넘기거나 호출이 실패하면 조용히
+# _plain_summary()(규칙 기반)로 내려앉으므로 요약 칸이 비는 일은 없다.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip()
+
 # ── 지지/저항 레벨 점수 가중치 ──
 # 환경변수로 뺀 이유: 백테스트로 스윕해야 하는 값이라 코드를 고쳐가며 재실행하면
 # 실수가 난다. 기본값이 곧 운영값이며, 바꾸려면 반드시 backtest.py로 검증할 것
@@ -140,6 +154,31 @@ def _load_listing() -> pd.DataFrame:
                 logger.info("종목 리스트 로드 완료 (fdr): %d종목", len(result))
     except Exception as e:
         logger.warning("fdr.StockListing 실패: %s", e)
+
+    # 1-b차: ETF 목록 병합 (best-effort)
+    #
+    # 'KRX' 리스팅에는 ETF가 없다 — 'TIGER 미국나스닥100' 같은 검색이 전부 실패했던 이유.
+    # market='ETF'로 표시하므로 시총 상위(KOSPI/KOSDAQ prefix 매칭)와 추천 스캔(marcap 결측)
+    # 양쪽에서 자연히 제외된다. ETF 조회가 실패해도 일반 종목 검색은 그대로 살아야 하므로
+    # 예외를 삼킨다.
+    if result is not None and not result.empty:
+        try:
+            etf = fdr.StockListing("ETF/KR")
+            if etf is not None and not etf.empty:
+                sym = "Symbol" if "Symbol" in etf.columns else "Code"
+                if sym in etf.columns and "Name" in etf.columns:
+                    etf_out = etf[[sym, "Name"]].copy()
+                    etf_out.columns = ["ticker", "name"]
+                    etf_out["ticker"] = etf_out["ticker"].astype(str).str.zfill(6)
+                    etf_out["name"] = etf_out["name"].astype(str)
+                    etf_out["market"] = "ETF"
+                    etf_out = etf_out.dropna(subset=["ticker", "name"])
+                    # concat 순서상 일반 종목이 앞 → 코드가 겹치면 일반 종목이 이긴다
+                    result = pd.concat([result, etf_out], ignore_index=True)
+                    result = result.drop_duplicates(subset=["ticker"], keep="first")
+                    logger.info("ETF 목록 병합 완료: %d개", len(etf_out))
+        except Exception as e:
+            logger.warning("ETF 목록 조회 실패 (일반 종목만 사용): %s", e)
 
     # 2차: pykrx 폴백
     if result is None or result.empty:
@@ -2880,6 +2919,403 @@ async def get_top_caps(
     except Exception as e:
         logger.exception("top-caps 계산 실패")
         return {"error": f"시총 상위 종목 계산 중 오류: {str(e)}"}
+
+
+# ══════════════════════════════════════════════════════════════════
+# '종목 현재 상황' — 검색 시점 기준 스냅샷 (숫자 + 뉴스 + AI 한마디)
+# ══════════════════════════════════════════════════════════════════
+#
+# 브리핑(정적 JSON, 하루 1회)과 다른 축이다. 브리핑은 "오늘 시장 전체",
+# 이 엔드포인트는 "지금 이 종목". 사용자가 버튼을 누른 그 시각에 계산한다.
+#
+# 3계층으로 나뉘며 위층이 실패해도 아래층은 항상 나간다:
+#   1. 숫자 (필수)   — 현재가·등락률·지지/저항·점수·신호카드. 백엔드 자체 계산.
+#   2. 요약 (필수)   — 그 숫자를 쉬운 말로 옮긴 3줄. 규칙 기반, LLM 없음.
+#   3. 뉴스 (선택)   — 네이버 검색API(무료). 키 없으면 빈 배열.
+# 외부 유료 API는 쓰지 않는다. 키가 없어도 1·2번은 항상 나간다.
+
+
+def _market_of_sync(ticker: str) -> str:
+    """리스팅에서 시장 구분 조회 ('KOSPI' | 'KOSDAQ' | 'ETF' | '')"""
+    try:
+        listing = _load_listing()
+        if listing is None or listing.empty or "market" not in listing.columns:
+            return ""
+        row = listing[listing["ticker"] == ticker]
+        if row.empty:
+            return ""
+        return str(row.iloc[0]["market"] or "")
+    except Exception:
+        return ""
+
+
+def _strip_html(s: str) -> str:
+    """네이버 검색 결과의 <b> 태그·HTML 엔티티 제거"""
+    import html
+    import re
+    return html.unescape(re.sub(r"<[^>]+>", "", s or "")).strip()
+
+
+def _fetch_news_sync(query: str, limit: int = 5) -> list[dict]:
+    """
+    네이버 뉴스 검색 (동기 — ThreadPool에서 호출).
+
+    requests 대신 표준 라이브러리 urllib을 쓴다: 의존성 하나를 아끼려는 게 아니라,
+    requirements.txt가 바뀌면 Render가 전체 재빌드하면서 pykrx 고정 의도가 흔들리기
+    때문이다(파일 상단 주석 참고). 키가 없으면 조용히 빈 배열 — 뉴스는 부가 기능이다.
+    """
+    if not (NAVER_CLIENT_ID and NAVER_CLIENT_SECRET):
+        return []
+    import json as _json
+    import urllib.parse
+    import urllib.request
+
+    url = (
+        "https://openapi.naver.com/v1/search/news.json?"
+        + urllib.parse.urlencode({"query": query, "display": limit, "sort": "date"})
+    )
+    req = urllib.request.Request(url, headers={
+        "X-Naver-Client-Id": NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET,
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            body = _json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning("뉴스 조회 실패 (%s): %s", query, e)
+        return []
+
+    items = []
+    for it in (body.get("items") or [])[:limit]:
+        title = _strip_html(it.get("title", ""))
+        if not title:
+            continue
+        items.append({
+            "title": title,
+            "summary": _strip_html(it.get("description", ""))[:200],
+            # originallink는 원본 언론사, link는 네이버뉴스. 원본이 없으면 네이버로.
+            "link": it.get("originallink") or it.get("link") or "",
+            "published": it.get("pubDate", ""),
+        })
+    return items
+
+
+
+# AI 요약 캐시.
+# 무료 티어는 하루 250회(flash)라 한도가 유한하다. 가족이 같은 종목을 몇 번씩 눌러도
+# 시세가 안 바뀌었으면 같은 답이 나오므로 다시 부를 이유가 없다.
+# 키에 close를 넣는 이유: 장중에 가격이 움직이면 요약도 갱신돼야 하기 때문.
+_AI_SUMMARY_CACHE: dict = {}
+_AI_SUMMARY_CACHE_MAX = 200
+
+_AI_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "headline": {"type": "string"},
+        "detail": {"type": "string"},
+        "caution": {"type": "string"},
+    },
+    "required": ["headline", "detail", "caution"],
+}
+
+_AI_SUMMARY_SYSTEM = """너는 주식 차트를 처음 보는 가족(부모님·누나)에게 설명하는 역할이다.
+
+반드시 지킬 것:
+- RSI, MACD, 다이버전스, 볼린저밴드 같은 전문 용어를 절대 쓰지 마라. 쉬운 말로만.
+- 주어진 숫자와 뉴스에서 확인되는 것만 말하라. 없는 수치나 사실을 지어내지 마라.
+- "사세요/파세요" 같은 투자 권유를 하지 마라. 상황 설명과 주의점까지만.
+- 뉴스가 비어 있으면 뉴스 이야기를 꺼내지 말고 숫자만으로 설명하라.
+- 존댓말로, 담백하게.
+
+세 칸을 채워라:
+- headline: 지금 상황 한 문장 (30자 이내)
+- detail: 왜 그런지 2~3문장. 뉴스가 숫자를 설명해주면 그 연결을 짚어줘라.
+- caution: 주의할 점 한 문장"""
+
+
+def _ai_summary_sync(payload: dict) -> dict | None:
+    """
+    Gemini 무료 티어로 요약 생성 (동기 — ThreadPool에서 호출).
+
+    실패하면 None을 돌려주고 호출부가 _plain_summary()로 내려앉는다. 여기서 예외를
+    던지면 안 된다 — 숫자·뉴스는 이미 다 계산돼 있고 그것만으로 화면은 성립한다.
+    무료 한도 초과(429)도 그냥 실패로 취급한다.
+
+    requests 대신 urllib을 쓰는 이유는 _fetch_news_sync와 같다: requirements.txt가
+    바뀌면 Render가 전체 재빌드하면서 pykrx 고정 의도가 흔들린다(파일 상단 주석).
+    """
+    if not GEMINI_API_KEY:
+        return None
+
+    cache_key = (payload["ticker"], payload["as_of"], payload["close"], len(payload["news"]))
+    hit = _AI_SUMMARY_CACHE.get(cache_key)
+    if hit is not None:
+        return hit
+
+    import json as _json
+    import urllib.error
+    import urllib.request
+
+    news_lines = "\n".join(f"- {n['title']}" for n in payload["news"]) or "(관련 뉴스 없음)"
+    prompt = f"""아래는 {payload['name']}({payload['ticker']})의 {payload['as_of']} 기준 상황이다.
+
+[숫자]
+현재가: {payload['close']}원
+전일 대비: {payload['change_pct']}%
+지지선(여기서 버티는 가격): {payload['support'] or '탐지 실패'}
+저항선(여기서 막히는 가격): {payload['resistance'] or '탐지 실패'}
+종합 점수: {payload['score']}점 (50점이 보통, 높을수록 흐름이 좋다는 뜻)
+
+[차트가 말해주는 신호]
+{payload['signal_text'] or '(특별한 신호 없음)'}
+
+[최근 뉴스]
+{news_lines}
+
+이 종목이 지금 어떤 상황인지 설명해줘."""
+
+    body = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "systemInstruction": {"parts": [{"text": _AI_SUMMARY_SYSTEM}]},
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": _AI_SUMMARY_SCHEMA,
+            "maxOutputTokens": 800,
+            # 3줄 요약에 추론은 필요 없다 — 끄면 응답이 빨라지고 토큰도 아낀다.
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}"
+        ":generateContent"
+    )
+
+    def _call(payload_body: dict) -> dict:
+        # 키는 헤더로 보낸다 — 쿼리스트링에 넣으면 프록시·액세스 로그에 그대로 남는다.
+        req = urllib.request.Request(
+            url,
+            data=_json.dumps(payload_body).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": GEMINI_API_KEY,
+            },
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return _json.loads(resp.read().decode("utf-8"))
+
+    try:
+        try:
+            data = _call(body)
+        except urllib.error.HTTPError as he:
+            # thinkingConfig를 모르는 모델이면 400이 난다 → 빼고 한 번만 재시도.
+            # 모델 이름을 환경변수로 열어둔 이상 언젠가 걸릴 조합이다.
+            if he.code != 400:
+                raise
+            retry = {**body, "generationConfig": {
+                k: v for k, v in body["generationConfig"].items() if k != "thinkingConfig"
+            }}
+            data = _call(retry)
+
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        out = _json.loads(text)
+        if not all(isinstance(out.get(k), str) and out[k].strip()
+                   for k in ("headline", "detail", "caution")):
+            raise ValueError("빈 필드 포함")
+    except Exception as e:
+        logger.warning("AI 요약 실패 (%s) — 규칙 요약으로 대체: %s", payload["ticker"], e)
+        return None
+
+    if len(_AI_SUMMARY_CACHE) >= _AI_SUMMARY_CACHE_MAX:
+        _AI_SUMMARY_CACHE.clear()  # LRU를 둘 만큼 크지 않다 — 통째로 비운다
+    _AI_SUMMARY_CACHE[cache_key] = out
+    return out
+
+
+def _plain_summary(n: dict, is_etf: bool) -> dict:
+    """
+    숫자를 쉬운 말 3줄로 옮긴다 — LLM 없이, 규칙만으로.
+
+    LLM을 쓰지 않는 이유는 비용만이 아니다. 여기서 다루는 건 전부 우리가 직접
+    계산한 값이라 해석에 재량이 필요 없고, 규칙으로 쓰면 같은 입력에 항상 같은
+    문장이 나온다(가족이 어제와 오늘을 비교할 수 있다). 대신 뉴스의 '의미'는
+    설명하지 못하므로, 뉴스는 제목 그대로 보여주고 해석은 하지 않는다.
+
+    구간 기준은 백테스트 결과를 따른다 (CLAUDE.md 점수 구간별 수익률 참고):
+    75+ 는 단기(7일) -2.15%로 오히려 나쁘고 30일 +6.91%라 '단기 주의'로 쓴다.
+    50~60이 7일 +2.16% / 30일 +12.19%로 가장 좋았다.
+    """
+    score = n.get("score") or 0
+    pct = n.get("change_pct")
+    close = n.get("close_raw") or 0
+
+    # ── 1줄: 오늘 움직임 ──
+    if pct is None:
+        move = "오늘 등락은 확인되지 않았어요"
+    elif pct >= 3:
+        move = f"오늘 크게 올랐어요 (+{pct}%)"
+    elif pct > 0:
+        move = f"오늘 조금 올랐어요 (+{pct}%)"
+    elif pct == 0:
+        move = "오늘은 거의 그대로예요"
+    elif pct > -3:
+        move = f"오늘 조금 내렸어요 ({pct}%)"
+    else:
+        move = f"오늘 크게 내렸어요 ({pct}%)"
+
+    # ── 2줄: 흐름 (점수 구간) ──
+    if score >= 75:
+        flow = ("흐름 자체는 아주 좋은 편이에요. 다만 이 구간 종목들은 과거 기록상 "
+                "일주일 안에는 오히려 눌리는 경우가 많았고, 한 달쯤 보면 좋아졌어요.")
+    elif score >= 60:
+        flow = "흐름이 좋은 편이에요. 급하게 오른 건 아니고 꾸준히 올라오는 모습입니다."
+    elif score >= 50:
+        flow = ("과열되지 않으면서 방향은 위쪽인, 가장 무난한 구간이에요. "
+                "과거 기록상 이 구간이 성적이 제일 좋았습니다.")
+    elif score >= 35:
+        flow = "흐름이 약한 편이에요. 아직 방향을 잡지 못한 모습입니다."
+    else:
+        flow = "흐름이 많이 약해요. 지금은 지켜보는 쪽이 편할 수 있어요."
+
+    # ── 3줄: 지지/저항 대비 현재 위치 ──
+    def _num(s):
+        try:
+            return float(str(s).replace(",", ""))
+        except Exception:
+            return None
+
+    sup, res = _num(n.get("support")), _num(n.get("resistance"))
+    if close and sup and res and res > sup:
+        pos = (close - sup) / (res - sup)
+        if pos <= 0.25:
+            level = f"지금 가격이 버팀목({n['support']}원) 가까이 있어요. 여기가 밀리면 더 내려갈 수 있어요."
+        elif pos >= 0.75:
+            level = f"지금 가격이 막히는 선({n['resistance']}원) 가까이 있어요. 여길 뚫으면 탄력이 붙습니다."
+        else:
+            level = (f"버팀목 {n['support']}원과 막히는 선 {n['resistance']}원 사이, "
+                     "중간쯤에 있어요.")
+    elif sup:
+        level = f"버팀목은 {n['support']}원 근처예요."
+    elif res:
+        level = f"막히는 선은 {n['resistance']}원 근처예요."
+    else:
+        level = "버팀목·막히는 선이 뚜렷하지 않아요. 방향이 정해지지 않은 구간입니다."
+
+    caution = (
+        "ETF는 여러 종목을 묶은 상품이라, 개별 종목 신호보다 지수 흐름을 함께 보셔야 해요."
+        if is_etf else
+        "이 화면은 차트 숫자만 본 것이고, 회사에 생긴 일까지는 반영하지 못해요. 아래 뉴스도 같이 봐주세요."
+    )
+    return {"headline": move, "detail": f"{flow} {level}", "caution": caution}
+
+
+def _stock_now_numbers_sync(ticker: str, skip_flow: bool) -> dict:
+    """현재가·등락률·지지/저항·점수·신호카드 계산 (동기 — ThreadPool에서 호출)"""
+    end_d = date.today()
+    start_d = end_d - timedelta(days=365)
+    raw = _fetch_ohlcv_sync(_yyyymmdd(start_d), _yyyymmdd(end_d), ticker)
+    if raw is None or raw.empty:
+        raise ValueError("해당 종목의 주가 데이터를 가져오지 못했습니다.")
+
+    df = _clean_ohlcv(_standardize_ohlcv(raw)).sort_values("time").reset_index(drop=True)
+    if len(df) < 2:
+        raise ValueError("주가 데이터가 부족합니다.")
+
+    closes = pd.to_numeric(df["close"], errors="coerce").dropna().to_numpy(dtype=float)
+    highs = pd.to_numeric(df["high"], errors="coerce").dropna().to_numpy(dtype=float)
+    lows = pd.to_numeric(df["low"], errors="coerce").dropna().to_numpy(dtype=float)
+    vols = pd.to_numeric(df["volume"], errors="coerce").dropna().to_numpy(dtype=float)
+
+    support, resistance = _support_resistance(closes, highs, lows, vols, max_lines=1)
+    box = _detect_box_range(df)
+
+    # ETF는 외인·기관 수급 점수가 의미가 다르다(설정/환매 구조). 아예 빼는 편이 정직하다.
+    flow = None
+    if not skip_flow:
+        flow = _fetch_investor_flow_sync(
+            ticker, _yyyymmdd(end_d - timedelta(days=40)), _yyyymmdd(end_d)
+        ) or None
+
+    score, signals, _ = _unified_score(df, support, resistance, box, investor_flow=flow)
+
+    last = float(closes[-1])
+    prev = float(closes[-2])
+    return {
+        "as_of": str(df["time"].iloc[-1]),
+        "close": f"{int(round(last)):,}",
+        "close_raw": last,
+        "change_pct": round((last - prev) / prev * 100, 2) if prev else None,
+        "support": f"{int(round(support[0])):,}" if support else None,
+        "resistance": f"{int(round(resistance[0])):,}" if resistance else None,
+        "score": score,
+        # 신호는 이미 쉬운 말로 쓰여 있다. 화면이 복잡해지지 않게 상위 4개만.
+        "signals": signals[:4],
+    }
+
+
+@app.get("/api/stock/{ticker_or_name}/now")
+async def get_stock_now(ticker_or_name: str):
+    """
+    '종목 현재 상황' — 검색한 그 시각 기준 스냅샷.
+
+    주의: fdr 일봉은 장중 당일 봉이 지연 반영된다(체결 즉시가 아님).
+    as_of가 데이터 기준일, checked_at이 조회 시각이다.
+    """
+    checked_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    try:
+        ticker, name = await _run_with_timeout(_resolve_ticker, ticker_or_name)
+    except asyncio.TimeoutError:
+        return {"error": "종목 검색 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."}
+    except Exception as e:
+        return {"error": str(e)}
+
+    market = await _run_with_timeout(_market_of_sync, ticker)
+    is_etf = market.upper().startswith("ETF")
+
+    try:
+        # 숫자와 뉴스는 서로 무관하므로 동시에 — 모달 대기 시간을 줄이는 유일한 지점이다.
+        numbers, news = await asyncio.gather(
+            _run_with_timeout(_stock_now_numbers_sync, ticker, is_etf,
+                              timeout=PYKRX_TIMEOUT_SEC * 3),
+            _run_with_timeout(_fetch_news_sync, name, 5, timeout=15),
+        )
+    except asyncio.TimeoutError:
+        return {"error": "조회 시간이 초과됐습니다. 잠시 후 다시 시도해주세요."}
+    except Exception as e:
+        logger.exception("종목 현재 상황 계산 실패: %s", ticker)
+        return {"error": f"분석 중 오류가 발생했습니다: {e}"}
+
+    # 요약: Gemini(무료 티어)를 먼저 시도하고, 없거나 실패하면 규칙 요약으로 내려앉는다.
+    # 규칙 요약은 네트워크도 한도도 없으므로 요약 칸이 비는 경우는 존재하지 않는다.
+    summary, source = None, "rule"
+    if GEMINI_API_KEY:
+        signal_text = "\n".join(
+            f"- {s.get('label', '')}: {s.get('desc', '')}" for s in numbers["signals"]
+        )
+        summary = await _run_with_timeout(
+            _ai_summary_sync,
+            {**numbers, "ticker": ticker, "name": name, "news": news,
+             "signal_text": signal_text},
+            timeout=25,
+        )
+        if summary:
+            source = "ai"
+    if not summary:
+        summary = _plain_summary(numbers, is_etf)
+
+    return {
+        "ticker": ticker,
+        "name": name,
+        "market": market or ("ETF" if is_etf else ""),
+        "is_etf": is_etf,
+        "checked_at": checked_at,
+        **numbers,
+        "news": news,
+        "summary": summary,
+        # 'ai' | 'rule' — 화면에 출처를 표시한다. 가족이 "누가 한 말인지"를 알아야 한다.
+        "summary_source": source,
+        # 뉴스 칸에 "설정하면 뉴스도 나옵니다" 안내를 띄울지 판단하는 용도
+        "news_enabled": bool(NAVER_CLIENT_ID and NAVER_CLIENT_SECRET),
+    }
 
 
 @app.get("/api/stock/{ticker_or_name}/predict")
