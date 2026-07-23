@@ -124,6 +124,67 @@ async def _best_business_day(max_back_days: int = 15) -> str:
     return await _run_with_timeout(_best_business_day_sync, max_back_days)
 
 
+
+# fdr의 KRX 리스팅이 읽는 캐시 저장소. fdr은 특정 날짜 하나만 시도하고 없으면 404로
+# 죽지만, 우리는 같은 곳을 날짜를 되짚어가며 읽는다. 자세한 배경은 _load_listing 참고.
+_KRX_CACHE_CSV = (
+    "https://raw.githubusercontent.com/FinanceData/fdr_krx_data_cache"
+    "/refs/heads/master/data/listing/krx/{date}.csv"
+)
+
+
+def _load_listing_from_cache_sync(max_back_days: int = 10) -> pd.DataFrame:
+    """
+    KRX 종목 리스트를 캐시 CSV에서 직접 조회 (오늘부터 최대 max_back_days일 되짚기).
+
+    반환 컬럼은 fdr 경로와 동일하게 맞춘다: ticker, name, market, marcap, amount.
+    이 컬럼들이 top-caps 랭킹(marcap)과 추천 필터(marcap·amount)의 입력이므로
+    이름이 어긋나면 해당 기능이 조용히 빈 결과를 낸다.
+
+    전부 실패하면 ValueError — 호출부가 pykrx 폴백으로 넘어간다.
+    """
+    import io
+    import urllib.request
+
+    last_err: Exception | None = None
+    for i in range(max_back_days):
+        day = (date.today() - timedelta(days=i)).isoformat()
+        try:
+            req = urllib.request.Request(
+                _KRX_CACHE_CSV.format(date=day),
+                headers={"User-Agent": "calculatechart/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = resp.read().decode("utf-8-sig")
+        except Exception as e:
+            last_err = e
+            continue  # 주말·공휴일·미게시 → 하루 더 되짚는다
+
+        df = pd.read_csv(io.StringIO(raw), dtype={"Code": str})
+        if df.empty or "Code" not in df.columns or "Name" not in df.columns:
+            last_err = ValueError(f"{day}: 컬럼 형식이 예상과 다름")
+            continue
+
+        out = pd.DataFrame({
+            "ticker": df["Code"].astype(str).str.zfill(6),
+            "name": df["Name"].astype(str),
+        })
+        for src, dst in (("Market", "market"), ("Marcap", "marcap"), ("Amount", "amount")):
+            if src in df.columns:
+                out[dst] = df[src].values
+        out = out.dropna(subset=["ticker", "name"]).drop_duplicates(subset=["ticker"])
+        if out.empty:
+            last_err = ValueError(f"{day}: 유효 행 없음")
+            continue
+        if i > 0:
+            # 오늘 게 없어서 과거 파일을 썼다는 사실은 남겨둔다 — 며칠씩 밀리면
+            # 캐시 저장소가 방치된 것이므로 다른 소스를 찾아야 한다는 신호다.
+            logger.info("KRX 캐시 CSV: %s 사용 (%d일 전 파일)", day, i)
+        return out
+
+    raise ValueError(f"캐시 CSV를 {max_back_days}일치 모두 조회 실패: {last_err}")
+
+
 def _load_listing() -> pd.DataFrame:
     """종목 리스트를 가져온다. 1시간 메모리 캐시 적용. fdr 실패 시 pykrx 폴백."""
     now = datetime.now()
@@ -155,30 +216,25 @@ def _load_listing() -> pd.DataFrame:
     except Exception as e:
         logger.warning("fdr.StockListing 실패: %s", e)
 
-    # 1-b차: ETF 목록 병합 (best-effort)
+    # 1-b차: fdr이 읽는 캐시 CSV를 직접, 날짜를 되짚어가며 조회
     #
-    # 'KRX' 리스팅에는 ETF가 없다 — 'TIGER 미국나스닥100' 같은 검색이 전부 실패했던 이유.
-    # market='ETF'로 표시하므로 시총 상위(KOSPI/KOSDAQ prefix 매칭)와 추천 스캔(marcap 결측)
-    # 양쪽에서 자연히 제외된다. ETF 조회가 실패해도 일반 종목 검색은 그대로 살아야 하므로
-    # 예외를 삼킨다.
-    if result is not None and not result.empty:
+    # 2026-07-23 장중에 앱 전체가 죽은 원인이 여기다. fdr의 StockListing('KRX')는
+    #   ① KRX API에서 최종영업일(max_work_dt)을 받고
+    #   ② raw.githubusercontent.com/FinanceData/fdr_krx_data_cache/.../{그날짜}.csv 를 읽는다
+    # 그런데 ②의 캐시 저장소는 당일 파일이 늦게 올라온다. 장이 열려 max_work_dt가
+    # 오늘로 넘어간 순간부터 파일이 생길 때까지 fdr은 404로 죽는다. 그날 06:07 브리핑은
+    # (아직 전 영업일이라) 멀쩡했는데 09:00 이후 차트·추천·검색이 전부 터진 이유다.
+    # pykrx 폴백도 KRX API 변경으로 죽어 있어서 단일 장애점이었다.
+    #
+    # 그래서 fdr이 하는 일을 여기서 직접 하되, 오늘 파일이 없으면 어제·그제로
+    # 되짚는다. 리스팅은 종목명·시장구분·시총이라 하루 이틀 묵어도 무해하다
+    # (주가는 별도 OHLCV 조회에서 최신을 가져온다).
+    if result is None or result.empty:
         try:
-            etf = fdr.StockListing("ETF/KR")
-            if etf is not None and not etf.empty:
-                sym = "Symbol" if "Symbol" in etf.columns else "Code"
-                if sym in etf.columns and "Name" in etf.columns:
-                    etf_out = etf[[sym, "Name"]].copy()
-                    etf_out.columns = ["ticker", "name"]
-                    etf_out["ticker"] = etf_out["ticker"].astype(str).str.zfill(6)
-                    etf_out["name"] = etf_out["name"].astype(str)
-                    etf_out["market"] = "ETF"
-                    etf_out = etf_out.dropna(subset=["ticker", "name"])
-                    # concat 순서상 일반 종목이 앞 → 코드가 겹치면 일반 종목이 이긴다
-                    result = pd.concat([result, etf_out], ignore_index=True)
-                    result = result.drop_duplicates(subset=["ticker"], keep="first")
-                    logger.info("ETF 목록 병합 완료: %d개", len(etf_out))
+            result = _load_listing_from_cache_sync()
+            logger.info("종목 리스트 로드 완료 (캐시 CSV 폴백): %d종목", len(result))
         except Exception as e:
-            logger.warning("ETF 목록 조회 실패 (일반 종목만 사용): %s", e)
+            logger.warning("캐시 CSV 폴백 실패: %s", e)
 
     # 2차: pykrx 폴백
     if result is None or result.empty:
@@ -197,7 +253,37 @@ def _load_listing() -> pd.DataFrame:
             logger.error("pykrx 폴백도 실패: %s", e)
 
     if result is None or result.empty:
-        raise ValueError("종목 리스트를 가져오지 못했습니다 (fdr + pykrx 모두 실패).")
+        raise ValueError(
+            "종목 리스트를 가져오지 못했습니다 (fdr·캐시 CSV·pykrx 모두 실패)."
+        )
+
+    # ── ETF 목록 병합 (best-effort) ──
+    #
+    # 반드시 리스팅 확보 '이후'에 실행해야 한다. 위 세 경로 중 어느 것이 성공했든
+    # ETF는 붙어야 하기 때문 — fdr 성공 시에만 병합하도록 두면 fdr이 죽은 날
+    # (캐시 CSV로 살아난 날) ETF 검색만 조용히 사라진다.
+    #
+    # 'KRX' 리스팅에는 ETF가 없다 — 'TIGER 미국나스닥100' 같은 검색이 전부 실패했던 이유.
+    # market='ETF'로 표시하므로 시총 상위(KOSPI/KOSDAQ prefix 매칭)와 추천 스캔(marcap 결측)
+    # 양쪽에서 자연히 제외된다. ETF는 캐시 저장소에 없어 fdr 경유뿐이라, 조회가 실패해도
+    # 일반 종목 검색은 그대로 살아야 하므로 예외를 삼킨다.
+    try:
+        etf = fdr.StockListing("ETF/KR")
+        if etf is not None and not etf.empty:
+            sym = "Symbol" if "Symbol" in etf.columns else "Code"
+            if sym in etf.columns and "Name" in etf.columns:
+                etf_out = etf[[sym, "Name"]].copy()
+                etf_out.columns = ["ticker", "name"]
+                etf_out["ticker"] = etf_out["ticker"].astype(str).str.zfill(6)
+                etf_out["name"] = etf_out["name"].astype(str)
+                etf_out["market"] = "ETF"
+                etf_out = etf_out.dropna(subset=["ticker", "name"])
+                # concat 순서상 일반 종목이 앞 → 코드가 겹치면 일반 종목이 이긴다
+                result = pd.concat([result, etf_out], ignore_index=True)
+                result = result.drop_duplicates(subset=["ticker"], keep="first")
+                logger.info("ETF 목록 병합 완료: %d개", len(etf_out))
+    except Exception as e:
+        logger.warning("ETF 목록 조회 실패 (일반 종목만 사용): %s", e)
 
     _LISTING_CACHE["data"] = result
     _LISTING_CACHE["last_updated"] = now

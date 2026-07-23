@@ -155,6 +155,17 @@ cd frontend && npm run build
 
 ## 주의 사항
 
+- **`fdr.StockListing('KRX')`는 장중에 404로 죽는다** (2026-07-23 실측, 앱 전체 마비).
+  fdr은 ① KRX API에서 최종영업일(`max_work_dt`)을 받고 ② `fdr_krx_data_cache` 저장소의
+  `data/listing/krx/{그날짜}.csv`를 읽는데, **당일 파일이 늦게 올라온다.** 장이 열려
+  `max_work_dt`가 오늘로 넘어간 순간부터 파일이 게시될 때까지 404다. 그날 06:07 브리핑은
+  (아직 전 영업일이라) 멀쩡했고 09:00 이후 차트·추천·검색이 전부 터졌다 — **배포와
+  무관하며 롤백해도 안 고쳐진다.** 대응: `_load_listing_from_cache_sync()`가 같은 CSV를
+  **날짜를 되짚어가며**(최대 10일) 직접 읽는다. 리스팅(종목명·시장·시총)은 하루 이틀
+  묵어도 무해하다 — 주가는 별도 OHLCV 조회가 최신을 가져온다.
+  폴백 순서: **fdr → 캐시 CSV → pykrx**, 그 뒤에 ETF 병합.
+  ETF 병합은 반드시 리스팅 확보 **이후**에 둘 것 — fdr 성공 시에만 병합하게 두면
+  fdr이 죽은 날 ETF 검색만 조용히 사라진다(초기 구현의 실제 버그).
 - **pykrx의 KRX 직접 조회는 죽었다** (2026-05경 KRX API 변경 — 1.2.8이 로그인 체계를
   추가한 배경. 한국 IP에서도 실패). `get_market_cap_by_ticker` 등 사용 금지.
   시총/시장구분/거래대금은 **fdr StockListing의 marcap/market/amount** (_load_listing이
