@@ -41,7 +41,7 @@ function App() {
     <div className="app">
       {/* ── 스티키 내비게이션 (앱 최적화: 빠른 이동) ── */}
       <nav className="topNav">
-        <span className="topNavBrand">명재가족</span>
+        <span className="topNavBrand">명재AI</span>
         <div className="topNavTabs">
           <StockNow />
           <ThemeToggle />
