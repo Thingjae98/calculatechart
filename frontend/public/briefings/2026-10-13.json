@@ -1,0 +1,195 @@
+{
+  "date": "2026-10-13",
+  "generated_at": "2026-10-13T11:32:42+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "확인 못 함",
+        "change_pct": null
+      },
+      {
+        "name": "Nasdaq",
+        "value": "확인 못 함",
+        "change_pct": null
+      },
+      {
+        "name": "Dow",
+        "value": "확인 못 함",
+        "change_pct": null
+      }
+    ],
+    "sox": {
+      "value": null,
+      "change_pct": null,
+      "components": []
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "확인 못 함",
+        "change": "-",
+        "tone": "flat"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "확인 못 함",
+        "change": "-",
+        "tone": "flat"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "확인 못 함",
+        "change": "-",
+        "tone": "flat"
+      }
+    ],
+    "headlines": [
+      "간밤 미국 증시 마감 수치를 확인하지 못했어요.",
+      "반도체 지수와 환율도 확인하지 못해 개장 후 직접 보셔야 해요."
+    ]
+  },
+  "domestic": {
+    "direction": "방향 판단 보류",
+    "tone": "flat",
+    "rationale": [
+      "간밤 해외 시장과 환율 자료를 확인하지 못해 오늘 방향을 단정하기 어려워요.",
+      "개장 후 코스피 흐름과 외국인 수급을 먼저 보고 판단하세요."
+    ],
+    "headlines": [
+      "오늘 국내 핵심 뉴스는 확인하지 못했어요. 개장 후 직접 확인이 필요해요."
+    ],
+    "levels": "확인된 지지·저항 수치 없음 — 개장 후 흐름을 보며 판단하세요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "관망",
+      "tone": "flat",
+      "momentum": "미국 반도체주 흐름과 외국인 수급을 확인하지 못했어요.",
+      "strategy": "보유 중이면 유지하고, 새로 사려면 장 초반 흐름을 본 뒤 나눠서 진입하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "관망",
+      "tone": "flat",
+      "momentum": "미국 반도체주 흐름을 확인하지 못해 방향을 단정하기 어려워요.",
+      "strategy": "급하게 사지 말고 장 초반 움직임이 안정된 뒤 판단하세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,185",
+        "change_pct": -1.06,
+        "support": "4,124",
+        "resistance": "4,362",
+        "score": 61
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,695",
+        "change_pct": -0.81,
+        "support": "3,675",
+        "resistance": "4,088",
+        "score": 85
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "130,000",
+        "change_pct": 0.78,
+        "support": "126,256",
+        "resistance": "130,757",
+        "score": 48
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "15,030",
+        "change_pct": -0.86,
+        "support": "14,115",
+        "resistance": "16,547",
+        "score": 76
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "123,200",
+        "change_pct": -3.6,
+        "support": "117,088",
+        "resistance": "137,636",
+        "score": 69
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,254",
+        "change_pct": 0.32,
+        "support": "1,073",
+        "resistance": "1,311",
+        "score": 61
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,735",
+        "change_pct": -1.32,
+        "support": "3,675",
+        "resistance": "3,988",
+        "score": 66
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,435",
+        "change_pct": -5.11,
+        "support": "2,790",
+        "resistance": "3,975",
+        "score": 74
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "18,190",
+        "change_pct": -6.67,
+        "support": "15,600",
+        "resistance": "21,071",
+        "score": 48
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "7,190",
+        "change_pct": -5.89,
+        "support": null,
+        "resistance": "9,980",
+        "score": 82
+      }
+    ],
+    "as_of": "2026-10-13"
+  },
+  "checklist": [
+    "개장 직후 삼성전자·SK하이닉스가 오르는지 내리는지 먼저 보세요.",
+    "원/달러 환율이 급하게 오르면 조심하세요.",
+    "방향이 불확실한 날에는 무리한 추격 매수를 피하세요."
+  ]
+}
