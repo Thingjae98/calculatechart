@@ -1,0 +1,205 @@
+{
+  "date": "2026-10-19",
+  "generated_at": "2026-10-19T08:02:23+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,659.44",
+        "change_pct": -1.1
+      },
+      {
+        "name": "Nasdaq",
+        "value": "26,140.03",
+        "change_pct": -2.1
+      },
+      {
+        "name": "Dow",
+        "value": "52,002.41",
+        "change_pct": -0.3
+      }
+    ],
+    "sox": {
+      "value": "11,137.30",
+      "change_pct": -3.83,
+      "components": [
+        {
+          "name": "마이크론 (MU)",
+          "value": "878.84",
+          "change_pct": -5.63
+        },
+        {
+          "name": "인텔 (INTC)",
+          "value": "89.85",
+          "change_pct": -5.79
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "1,331.4원",
+        "change": "-13.2원",
+        "tone": "up"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "$101.4",
+        "change": "+3.5%",
+        "tone": "down"
+      }
+    ],
+    "headlines": [
+      "미국 증시 하락: 나스닥은 이번 주 4.5% 내려 6월 이후 가장 부진한 한 주였어요.",
+      "AI 투자 거품 우려로 반도체주가 8거래일 연속 내렸어요. AI 데이터센터 업체 코어위브는 약 12% 급락했어요.",
+      "호르무즈 해협 유조선 공격 등으로 국제 유가(WTI)가 100달러를 넘었어요.",
+      "연준 의장은 10월 금리 인상을 시사하지 않았어요. 다음 회의는 10월 27~28일이에요."
+    ]
+  },
+  "domestic": {
+    "direction": "약보합 · 변동 큼",
+    "tone": "flat",
+    "rationale": [
+      "지난 금요일 코스피는 2.05% 올라 5,668에 마감했고 외국인이 9거래일 만에 순매수(약 3,430억원)로 돌아섰어요. 다만 하루만으로 반등이라 단정하기는 일러요.",
+      "미국 반도체주가 다시 크게 내려 오늘 아침 반도체 중심으로 눌릴 수 있어요. 환율이 내려 외국인 부담은 줄었어요."
+    ],
+    "headlines": [
+      "10월 1~10일 반도체 수출이 122억 달러로 역대 최대예요.",
+      "10월 들어 외국인이 삼성전자·SK하이닉스를 약 16조원 순매도했어요.",
+      "이번 주 일정: 중국 3분기 GDP(19일), 미국 기술주 실적(21~22일), 한국은행 금통위(22일)"
+    ],
+    "levels": "지난 금요일 장중 고점 5,810선이 부담, 종가 5,668선을 지키는지가 관건이에요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "약세 출발 가능",
+      "tone": "down",
+      "momentum": "전 거래일 소폭 반등했지만 미국 반도체주 급락이 부담이에요. 외국인 매매 방향이 핵심이에요.",
+      "strategy": "급하게 사지 말고 외국인이 계속 사는지 확인한 뒤 판단하세요. 보유 중이면 흔들려도 무리한 추가 매수는 피하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "변동성 큼",
+      "tone": "down",
+      "momentum": "AI 투자 우려와 미국 메모리주(마이크론) 급락의 영향을 받기 쉬워요.",
+      "strategy": "하루 등락이 크니 나눠서 대응하고, 오전 장 흐름을 보고 결정하세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "402340",
+        "name": "SK스퀘어",
+        "market": "KOSPI",
+        "close": "782,000",
+        "change_pct": 4.27,
+        "support": "768,000",
+        "resistance": "1,201,000",
+        "score": 92
+      },
+      {
+        "ticker": "373220",
+        "name": "LG에너지솔루션",
+        "market": "KOSPI",
+        "close": "403,500",
+        "change_pct": 2.67,
+        "support": "345,590",
+        "resistance": "455,000",
+        "score": 64
+      },
+      {
+        "ticker": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "close": "1,184,000",
+        "change_pct": 5.53,
+        "support": "1,163,000",
+        "resistance": "1,370,000",
+        "score": 72
+      },
+      {
+        "ticker": "005380",
+        "name": "현대차",
+        "market": "KOSPI",
+        "close": "314,000",
+        "change_pct": 8.46,
+        "support": "253,744",
+        "resistance": "321,000",
+        "score": 63
+      },
+      {
+        "ticker": "207940",
+        "name": "삼성바이오로직스",
+        "market": "KOSPI",
+        "close": "1,291,000",
+        "change_pct": 4.03,
+        "support": "1,218,547",
+        "resistance": "1,442,018",
+        "score": 58
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "196170",
+        "name": "알테오젠",
+        "market": "KOSDAQ",
+        "close": "234,000",
+        "change_pct": 12.5,
+        "support": "220,063",
+        "resistance": "268,000",
+        "score": 58
+      },
+      {
+        "ticker": "086520",
+        "name": "에코프로",
+        "market": "KOSDAQ",
+        "close": "81,500",
+        "change_pct": 3.3,
+        "support": "73,881",
+        "resistance": "96,139",
+        "score": 60
+      },
+      {
+        "ticker": "247540",
+        "name": "에코프로비엠",
+        "market": "KOSDAQ",
+        "close": "106,500",
+        "change_pct": 3.7,
+        "support": "102,550",
+        "resistance": "118,966",
+        "score": 55
+      },
+      {
+        "ticker": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "close": "211,500",
+        "change_pct": 7.31,
+        "support": "175,000",
+        "resistance": "239,500",
+        "score": 57
+      },
+      {
+        "ticker": "277810",
+        "name": "레인보우로보틱스",
+        "market": "KOSDAQ",
+        "close": "355,500",
+        "change_pct": 6.12,
+        "support": "335,000",
+        "resistance": "470,000",
+        "score": 65
+      }
+    ],
+    "as_of": "2026-10-18"
+  },
+  "checklist": [
+    "외국인이 이틀 연속 순매수하는지 확인하세요.",
+    "미국 반도체주 급락이 삼성전자·SK하이닉스 시초가에 얼마나 반영되는지 보세요.",
+    "유가 100달러 위 상태와 환율(1,330원대) 흐름을 살피세요.",
+    "11시 중국 3분기 GDP 발표 후 시장 반응을 확인하세요."
+  ]
+}
