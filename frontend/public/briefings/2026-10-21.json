@@ -1,0 +1,203 @@
+{
+  "date": "2026-10-21",
+  "generated_at": "2026-10-21T08:48:09+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,690.73",
+        "change_pct": 0.41
+      },
+      {
+        "name": "Nasdaq",
+        "value": "26,430.89",
+        "change_pct": 1.11
+      },
+      {
+        "name": "Dow",
+        "value": "51,966.03",
+        "change_pct": -0.07
+      }
+    ],
+    "sox": {
+      "value": "11,316.34",
+      "change_pct": 1.61,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "217.09",
+          "change_pct": 1.38
+        },
+        {
+          "name": "마이크론 (MU)",
+          "value": null,
+          "change_pct": 3.02
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": null,
+          "change_pct": 1.78
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "1,328.1원",
+        "change": "-2.2원",
+        "tone": "up"
+      }
+    ],
+    "headlines": [
+      "수치는 확인된 가장 최근 미국 마감(10/19) 기준이에요. 20일 장은 마감 결과를 확인하지 못했어요.",
+      "반도체지수가 8거래일 연속 하락을 끊고 반등했지만, 앞선 큰 낙폭의 일부만 되찾은 수준이에요.",
+      "AI 투자 수익성·부채 우려와 유가 급등이 시장의 불안 요인으로 이어지고 있어요."
+    ]
+  },
+  "domestic": {
+    "direction": "변동성 큼, 관망",
+    "tone": "flat",
+    "rationale": [
+      "코스피가 10/20 3.73% 급락한 5,552.74로 마감해 하루 이틀 사이 변동이 매우 커요.",
+      "원/달러 환율은 1,328원대로 연중 최저권이라 외국인 수급에는 부담이 덜해요.",
+      "AI 투자 불안과 유가 상승이 이어지면 추가 흔들림이 있을 수 있어요."
+    ],
+    "headlines": [
+      "코스피 3.73% 급락, 외국인·기관 동반 매도 (AI 부채 우려)",
+      "삼성전자는 외국인이 순매수, SK하이닉스는 순매도로 엇갈렸다는 보도",
+      "프랑스 재정 불안 등 대외 악재도 겹쳤다는 분석"
+    ],
+    "levels": "5,500선 지켜지는지가 첫 관전 포인트예요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "혼조",
+      "tone": "flat",
+      "momentum": "10/20 급락했지만 외국인은 순매수(약 3,865억원 보도)였어요.",
+      "strategy": "급락 직후라 서두르지 말고, 시초가 흐름을 본 뒤 판단하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "조심",
+      "tone": "down",
+      "momentum": "10/20 4% 안팎 하락, 외국인 순매도(약 3,941억원 보도). 미국 반도체 반등은 호재예요.",
+      "strategy": "신규 매수는 안정되는 모습을 확인한 뒤에, 보유분은 무리하게 늘리지 마세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "402340",
+        "name": "SK스퀘어",
+        "market": "KOSPI",
+        "close": "724,000",
+        "change_pct": -9.73,
+        "support": null,
+        "resistance": "1,201,000",
+        "score": 67
+      },
+      {
+        "ticker": "373220",
+        "name": "LG에너지솔루션",
+        "market": "KOSPI",
+        "close": "411,500",
+        "change_pct": -3.97,
+        "support": "345,590",
+        "resistance": "455,000",
+        "score": 66
+      },
+      {
+        "ticker": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "close": "1,125,000",
+        "change_pct": -7.79,
+        "support": "1,100,000",
+        "resistance": "1,699,000",
+        "score": 70
+      },
+      {
+        "ticker": "207940",
+        "name": "삼성바이오로직스",
+        "market": "KOSPI",
+        "close": "1,385,000",
+        "change_pct": -0.07,
+        "support": "1,291,520",
+        "resistance": "1,442,018",
+        "score": 60
+      },
+      {
+        "ticker": "005380",
+        "name": "현대차",
+        "market": "KOSPI",
+        "close": "305,500",
+        "change_pct": -5.86,
+        "support": "253,744",
+        "resistance": "321,000",
+        "score": 62
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "196170",
+        "name": "알테오젠",
+        "market": "KOSDAQ",
+        "close": "228,000",
+        "change_pct": -4.8,
+        "support": "220,063",
+        "resistance": "268,000",
+        "score": 57
+      },
+      {
+        "ticker": "086520",
+        "name": "에코프로",
+        "market": "KOSDAQ",
+        "close": "82,900",
+        "change_pct": -7.99,
+        "support": "81,026",
+        "resistance": "96,139",
+        "score": 52
+      },
+      {
+        "ticker": "247540",
+        "name": "에코프로비엠",
+        "market": "KOSDAQ",
+        "close": "105,300",
+        "change_pct": -8.91,
+        "support": "102,550",
+        "resistance": "118,966",
+        "score": 60
+      },
+      {
+        "ticker": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "close": "192,200",
+        "change_pct": -11.22,
+        "support": "160,966",
+        "resistance": "196,200",
+        "score": 61
+      },
+      {
+        "ticker": "277810",
+        "name": "레인보우로보틱스",
+        "market": "KOSDAQ",
+        "close": "362,000",
+        "change_pct": -4.74,
+        "support": "334,500",
+        "resistance": "470,000",
+        "score": 64
+      }
+    ],
+    "as_of": "2026-10-20"
+  },
+  "checklist": [
+    "코스피가 5,500선을 지키는지 보세요.",
+    "삼성전자·SK하이닉스에서 외국인이 사는지 파는지 확인하세요.",
+    "미국 AI·반도체주와 유가 흐름이 다시 불안해지지 않는지 보세요."
+  ]
+}
