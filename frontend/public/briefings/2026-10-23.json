@@ -1,0 +1,214 @@
+{
+  "date": "2026-10-23",
+  "generated_at": "2026-10-23T08:58:45+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,663.43",
+        "change_pct": -1.21
+      },
+      {
+        "name": "Nasdaq",
+        "value": "26,008.86",
+        "change_pct": -2.6
+      },
+      {
+        "name": "Dow",
+        "value": "52,867.98",
+        "change_pct": 0.02
+      }
+    ],
+    "sox": {
+      "value": "확인 불가",
+      "change_pct": -6.7,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "212.21",
+          "change_pct": -4.4
+        },
+        {
+          "name": "TSMC (TSM)",
+          "value": "확인 불가",
+          "change_pct": null
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "확인 불가",
+          "change_pct": null
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "1,324.2원",
+        "change": "-1.0원",
+        "tone": "up"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "확인 불가",
+        "change": "-",
+        "tone": "flat"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "확인 불가",
+        "change": "지정학 긴장에 상승",
+        "tone": "down"
+      }
+    ],
+    "headlines": [
+      "메타의 설비투자 확대 계획에 AI 투자 부담 우려가 되살아나며 미국 기술주가 급락했어요.",
+      "반도체 지수(SOX)가 하루 6.7% 폭락해 사상 최대 낙폭을 기록했고 AMD·마이크론도 크게 내렸어요.",
+      "다우지수는 보합권을 지켰지만 S&P 500은 7월 이후 최악, 나스닥은 6월 이후 최악의 하루였어요."
+    ]
+  },
+  "domestic": {
+    "direction": "하락 우세 (변동성 큼)",
+    "tone": "down",
+    "rationale": [
+      "간밤 미국 반도체주 폭락의 영향으로 삼성전자·SK하이닉스 등 반도체 대형주에 매도 압력이 이어질 가능성이 커요.",
+      "최근 코스피가 하루 3~5%씩 오르내리는 큰 변동성을 보이고 있어 방향을 단정하기 어려워요. 원/달러 환율이 2년 만의 낮은 수준(1,324원대)인 점은 외국인 수급에 다소 우호적이에요."
+    ],
+    "headlines": [
+      "코스피는 22일 3.52% 급락한 5,533.77에 마감해 전날 오른 폭(+3.29%)을 거의 반납했어요.",
+      "삼성전자는 -4.03%, SK하이닉스는 -5.49% 하락했고 외국인은 하루 만에 매도로 돌아섰다는 보도가 있어요.",
+      "원/달러 환율은 1,324.2원으로 2년 만의 최저 수준을 이어갔어요."
+    ],
+    "levels": "코스피 22일 장중 저점 5,486 / 종가 5,534 — 5,500선 방어 여부가 오늘의 첫 관문"
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "약세 출발 예상",
+      "tone": "down",
+      "momentum": "미국 반도체 지수 -6.7% 충격이 그대로 전해져요. 전날 급락(-4.03%) 이후 추가 하락 여부는 외국인 수급이 좌우해요.",
+      "strategy": "개장 직후 급한 추격 매수는 피하고, 보유자는 흔들림을 지켜보며 장 초반 낙폭이 안정되는지 확인하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "약세 출발 예상",
+      "tone": "down",
+      "momentum": "마이크론 등 메모리 관련주가 크게 내려 부담이에요. 어제 -5.49%로 낙폭이 컸어요.",
+      "strategy": "변동성이 매우 커서 신규 진입은 분할로 소량만, 단기 급등 구간이면 일부 이익 실현도 고려하세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "402340",
+        "name": "SK스퀘어",
+        "market": "KOSPI",
+        "close": "749,000",
+        "change_pct": -3.1,
+        "support": "722,000",
+        "resistance": "1,201,000",
+        "score": 64
+      },
+      {
+        "ticker": "373220",
+        "name": "LG에너지솔루션",
+        "market": "KOSPI",
+        "close": "391,500",
+        "change_pct": -5.09,
+        "support": "345,590",
+        "resistance": "455,000",
+        "score": 68
+      },
+      {
+        "ticker": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "close": "1,146,000",
+        "change_pct": -3.21,
+        "support": "1,100,000",
+        "resistance": "1,370,000",
+        "score": 66
+      },
+      {
+        "ticker": "207940",
+        "name": "삼성바이오로직스",
+        "market": "KOSPI",
+        "close": "1,361,000",
+        "change_pct": -3.61,
+        "support": "1,291,520",
+        "resistance": "1,442,018",
+        "score": 69
+      },
+      {
+        "ticker": "005380",
+        "name": "현대차",
+        "market": "KOSPI",
+        "close": "300,500",
+        "change_pct": -3.06,
+        "support": "280,997",
+        "resistance": "321,000",
+        "score": 58
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "196170",
+        "name": "알테오젠",
+        "market": "KOSDAQ",
+        "close": "230,000",
+        "change_pct": -3.77,
+        "support": "220,063",
+        "resistance": "268,000",
+        "score": 58
+      },
+      {
+        "ticker": "086520",
+        "name": "에코프로",
+        "market": "KOSDAQ",
+        "close": "77,900",
+        "change_pct": -7.15,
+        "support": "73,881",
+        "resistance": "88,595",
+        "score": 54
+      },
+      {
+        "ticker": "247540",
+        "name": "에코프로비엠",
+        "market": "KOSDAQ",
+        "close": "98,800",
+        "change_pct": -8.43,
+        "support": "86,910",
+        "resistance": "130,700",
+        "score": 72
+      },
+      {
+        "ticker": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "close": "187,900",
+        "change_pct": -8.12,
+        "support": "160,966",
+        "resistance": "196,200",
+        "score": 76
+      },
+      {
+        "ticker": "277810",
+        "name": "레인보우로보틱스",
+        "market": "KOSDAQ",
+        "close": "363,500",
+        "change_pct": -2.94,
+        "support": "334,500",
+        "resistance": "470,000",
+        "score": 58
+      }
+    ],
+    "as_of": "2026-10-22"
+  },
+  "checklist": [
+    "코스피가 어제 저점(5,486) 아래로 내려가는지, 5,500선을 지키는지 보세요.",
+    "삼성전자·SK하이닉스의 장 초반 낙폭과 외국인 순매수/순매도 방향을 확인하세요.",
+    "환율이 1,320원 부근을 지키는지, 미국 선물(나스닥)이 추가로 밀리는지 살펴보세요."
+  ]
+}
