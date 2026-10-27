@@ -1,69 +1,76 @@
 {
-  "date": "2026-10-26",
-  "generated_at": "2026-10-26T08:10:57+09:00",
+  "date": "2026-10-27",
+  "generated_at": "2026-10-27T09:22:49+09:00",
   "is_sample": false,
   "global": {
     "indices": [
       {
         "name": "S&P 500",
-        "value": "-",
-        "change_pct": null
+        "value": "7,676.77",
+        "change_pct": 0.7
       },
       {
         "name": "Nasdaq",
-        "value": "-",
-        "change_pct": null
+        "value": "26,169.38",
+        "change_pct": 0.8
       },
       {
         "name": "Dow",
-        "value": "-",
-        "change_pct": null
+        "value": "52,361.58",
+        "change_pct": 0.3
       }
     ],
     "sox": {
       "value": "-",
       "change_pct": null,
-      "components": []
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "-",
+          "change_pct": 2.4
+        }
+      ]
     },
     "macro": [
       {
         "name": "원/달러 환율",
-        "value": "-",
-        "change": "확인 불가",
+        "value": "1,323.1원",
+        "change": "+1.5원",
         "tone": "flat"
       },
       {
         "name": "미 국채 10년물",
-        "value": "-",
-        "change": "확인 불가",
+        "value": "4.98%",
+        "change": "-2bp",
         "tone": "flat"
       },
       {
-        "name": "WTI 유가",
-        "value": "-",
-        "change": "확인 불가",
-        "tone": "flat"
+        "name": "브렌트유",
+        "value": "$110.74",
+        "change": "-0.9%",
+        "tone": "down"
       }
     ],
     "headlines": [
-      "지난 금요일 미국 증시 마감 수치는 보도마다 달라 정확히 확인하지 못했어요. 숫자는 비워 두었어요.",
-      "엔비디아 등 AI 반도체주 흐름에 따라 국내 반도체 주가도 크게 흔들리는 분위기예요.",
-      "이번 주에는 빅테크 실적과 미국 물가 지표 발표가 이어질 예정이에요."
+      "뉴욕증시는 엔비디아가 2.4% 오르며 상승 마감했어요. 3주 연속 하락 뒤 반등이에요.",
+      "미국 중앙은행(연준)이 수요일 금리를 동결할 전망이에요. 지난달 3년 만에 금리를 올렸어요.",
+      "AI 투자를 위한 대규모 차입 부담 우려로 AI 관련주는 여전히 등락이 커요.",
+      "구글·마이크로소프트는 수요일, 아마존은 목요일에 실적을 발표해요."
     ]
   },
   "domestic": {
-    "direction": "혼조 · 변동성 주의",
+    "direction": "혼조 (조심스러운 관망)",
     "tone": "flat",
     "rationale": [
-      "지난 금요일 코스피는 장중 4%대 급락 후 반등해 5,550.30(+0.30%)에 마감했어요. 외국인은 1조 원 가까이 팔았고 기관과 개인이 받아냈어요.",
-      "삼성전자·SK하이닉스의 대규모 자사주 매입이 끝나 수급 지원이 줄었고, AI 투자 수익성 우려가 남아 있어요."
+      "어제 코스피는 외국인이 약 6,955억원을 팔며 1.46% 내린 5,469로 마감했어요. 종가 기준 7개월 만의 최저예요.",
+      "간밤 미국 증시와 엔비디아는 올랐지만, 연준 회의와 빅테크 실적을 앞두고 외국인 매도가 이어질지가 관건이에요."
     ],
     "headlines": [
-      "코스피, 장중 4% 급락 딛고 반등해 5,550선 마감",
-      "SK하이닉스, 솔리다임 IPO 검토 중단 발표에 4%대 상승",
-      "외국인 이틀 연속 대형 반도체주 중심 순매도"
+      "코스피, 외국인 매도에 5,500선 아래로 내려왔어요. 하락 종목이 상승 종목의 약 8배였어요.",
+      "한 달간 코스피가 21.6% 떨어져 미국 증시보다 훨씬 약했어요.",
+      "AI 투자 둔화 우려로 메모리 반도체 기업에 부담이 커졌어요."
     ],
-    "levels": "코스피 5,500선 지지 여부가 핵심이에요. 이 선이 깨지면 추가 하락에 주의하세요."
+    "levels": "5,500선 회복 여부가 첫 관문이에요. 못 넘으면 5,400선 아래도 열어두세요."
   },
   "semis": {
     "samsung": {
@@ -71,128 +78,128 @@
       "ticker": "005930",
       "direction": "관망",
       "tone": "flat",
-      "momentum": "금요일 장 초반 5% 넘게 빠졌다가 낙폭을 모두 회복해 215,500원(+0.47%)에 마감했어요. 자사주 매입 종료 이후 외국인 매도가 변수예요.",
-      "strategy": "급하게 사지 말고 보유 중이면 유지하세요. 외국인 매도가 줄어드는지 확인한 뒤 판단하는 게 안전해요."
+      "momentum": "어제 1.16% 내린 213,000원에 마감했어요. 엔비디아 반등은 긍정적이지만 외국인 매도가 변수예요.",
+      "strategy": "신규 매수는 서두르지 말고, 외국인이 사는 쪽으로 돌아서는지 보고 판단하세요. 보유 중이면 유지해도 좋아요."
     },
     "hynix": {
       "name": "SK하이닉스",
       "ticker": "000660",
-      "direction": "소폭 상승",
-      "tone": "up",
-      "momentum": "솔리다임 IPO 검토 중단 공시로 금요일 4.42% 오른 1,277,000원에 마감했어요. 다만 AI 투자 불안은 남아 있어요.",
-      "strategy": "보유 중이면 유지하되, 하루 등락이 커서 한 번에 많이 사지 말고 나눠서 접근하세요."
+      "direction": "관망",
+      "tone": "flat",
+      "momentum": "어제 장 초반엔 올랐다가 1,275,000원(-0.16%)으로 마감했어요. 일본 키옥시아 지분 매각 차익으로 특별배당을 줄 거란 기대가 있어요.",
+      "strategy": "배당 기대로 오를 수 있지만 AI 투자 둔화 우려도 있으니 큰 비중으로 사기보다 나눠서 접근하세요."
     }
   },
   "top_caps": {
     "kospi": [
       {
-        "ticker": "402340",
-        "name": "SK스퀘어",
+        "ticker": "095570",
+        "name": "AJ네트웍스",
         "market": "KOSPI",
-        "close": "764,000",
-        "change_pct": 2,
-        "support": "719,000",
-        "resistance": "1,201,000",
-        "score": 64
+        "close": "4,005",
+        "change_pct": 0.25,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 62
       },
       {
-        "ticker": "373220",
-        "name": "LG에너지솔루션",
+        "ticker": "027410",
+        "name": "BGF",
         "market": "KOSPI",
-        "close": "381,500",
-        "change_pct": -2.55,
-        "support": "345,590",
-        "resistance": "387,000",
-        "score": 49
+        "close": "3,425",
+        "change_pct": 0.44,
+        "support": "3,385",
+        "resistance": "4,075",
+        "score": 84
       },
       {
-        "ticker": "009150",
-        "name": "삼성전기",
+        "ticker": "282330",
+        "name": "BGF리테일",
         "market": "KOSPI",
-        "close": "1,111,000",
-        "change_pct": -3.05,
-        "support": "1,048,000",
-        "resistance": "1,699,000",
-        "score": 71
+        "close": "126,400",
+        "change_pct": -1.48,
+        "support": "107,171",
+        "resistance": "144,392",
+        "score": 41
       },
       {
-        "ticker": "207940",
-        "name": "삼성바이오로직스",
+        "ticker": "138930",
+        "name": "BNK금융지주",
         "market": "KOSPI",
-        "close": "1,460,000",
-        "change_pct": 7.27,
-        "support": "1,291,520",
-        "resistance": "1,635,156",
+        "close": "12,270",
+        "change_pct": 4.78,
+        "support": "11,690",
+        "resistance": "16,590",
         "score": 70
       },
       {
-        "ticker": "005380",
-        "name": "현대차",
+        "ticker": "001040",
+        "name": "CJ",
         "market": "KOSPI",
-        "close": "293,000",
-        "change_pct": -2.5,
-        "support": "280,997",
-        "resistance": "321,000",
-        "score": 62
+        "close": "116,400",
+        "change_pct": 1.22,
+        "support": "111,600",
+        "resistance": "137,793",
+        "score": 66
       }
     ],
     "kosdaq": [
       {
-        "ticker": "196170",
-        "name": "알테오젠",
+        "ticker": "060310",
+        "name": "3S",
         "market": "KOSDAQ",
-        "close": "222,000",
-        "change_pct": -3.48,
-        "support": "220,063",
-        "resistance": "268,000",
-        "score": 64
+        "close": "1,252",
+        "change_pct": -0.08,
+        "support": "1,073",
+        "resistance": "1,311",
+        "score": 51
       },
       {
-        "ticker": "086520",
-        "name": "에코프로",
+        "ticker": "054620",
+        "name": "APS",
         "market": "KOSDAQ",
-        "close": "72,400",
-        "change_pct": -7.06,
-        "support": "63,400",
-        "resistance": "96,700",
-        "score": 71
+        "close": "3,290",
+        "change_pct": -0.9,
+        "support": "3,200",
+        "resistance": "4,090",
+        "score": 70
       },
       {
-        "ticker": "247540",
-        "name": "에코프로비엠",
+        "ticker": "079810",
+        "name": "APS이노베이션",
         "market": "KOSDAQ",
-        "close": "92,800",
-        "change_pct": -6.07,
-        "support": "86,910",
-        "resistance": "130,700",
-        "score": 80
+        "close": "3,340",
+        "change_pct": 3.25,
+        "support": "3,070",
+        "resistance": "3,975",
+        "score": 72
       },
       {
-        "ticker": "036930",
-        "name": "주성엔지니어링",
+        "ticker": "265520",
+        "name": "AP시스템",
         "market": "KOSDAQ",
-        "close": "179,200",
-        "change_pct": -4.63,
-        "support": "160,966",
-        "resistance": "196,200",
-        "score": 75
+        "close": "16,980",
+        "change_pct": 5.47,
+        "support": "15,600",
+        "resistance": "21,200",
+        "score": 78
       },
       {
-        "ticker": "277810",
-        "name": "레인보우로보틱스",
+        "ticker": "211270",
+        "name": "AP위성",
         "market": "KOSDAQ",
-        "close": "349,000",
-        "change_pct": -3.99,
-        "support": "334,500",
-        "resistance": "470,000",
-        "score": 58
+        "close": "8,790",
+        "change_pct": 0,
+        "support": "7,509",
+        "resistance": "9,949",
+        "score": 76
       }
     ],
-    "as_of": "2026-10-25"
+    "as_of": "2026-10-27"
   },
   "checklist": [
-    "코스피가 5,500선을 지키는지 확인하세요.",
-    "외국인이 반도체주를 계속 파는지, 멈추는지 보세요.",
-    "이번 주 발표될 빅테크 실적과 미국 물가 지표 소식을 체크하세요."
+    "외국인이 오늘도 파는지, 사는 쪽으로 바뀌는지 확인하세요.",
+    "코스피가 5,500선을 다시 넘는지 보세요.",
+    "수요일 연준 금리 발표와 미국 대형 기술기업 실적 전에는 큰 베팅을 줄이세요."
   ]
 }
