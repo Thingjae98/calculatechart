@@ -1,93 +1,101 @@
 {
-  "date": "2026-10-27",
-  "generated_at": "2026-10-27T09:22:49+09:00",
+  "date": "2026-10-28",
+  "generated_at": "2026-10-28T09:28:10+09:00",
   "is_sample": false,
   "global": {
     "indices": [
       {
         "name": "S&P 500",
-        "value": "7,676.77",
-        "change_pct": 0.7
+        "value": "7,722.60",
+        "change_pct": 0.6
       },
       {
         "name": "Nasdaq",
-        "value": "26,169.38",
-        "change_pct": 0.8
+        "value": "26,477.81",
+        "change_pct": 1.18
       },
       {
         "name": "Dow",
-        "value": "52,361.58",
-        "change_pct": 0.3
+        "value": "52,377.57",
+        "change_pct": 0.03
       }
     ],
     "sox": {
-      "value": "-",
-      "change_pct": null,
+      "value": "집계 전",
+      "change_pct": 3.6,
       "components": [
         {
           "name": "엔비디아 (NVDA)",
-          "value": "-",
-          "change_pct": 2.4
+          "value": "집계 전",
+          "change_pct": 0.9
+        },
+        {
+          "name": "TSMC (TSM)",
+          "value": "집계 전",
+          "change_pct": 2.95
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "집계 전",
+          "change_pct": 4
         }
       ]
     },
     "macro": [
       {
         "name": "원/달러 환율",
-        "value": "1,323.1원",
-        "change": "+1.5원",
+        "value": "확인 안 됨",
+        "change": "-",
         "tone": "flat"
       },
       {
         "name": "미 국채 10년물",
-        "value": "4.98%",
-        "change": "-2bp",
+        "value": "확인 안 됨",
+        "change": "-",
         "tone": "flat"
       },
       {
-        "name": "브렌트유",
-        "value": "$110.74",
-        "change": "-0.9%",
-        "tone": "down"
+        "name": "WTI 유가",
+        "value": "확인 안 됨",
+        "change": "-",
+        "tone": "flat"
       }
     ],
     "headlines": [
-      "뉴욕증시는 엔비디아가 2.4% 오르며 상승 마감했어요. 3주 연속 하락 뒤 반등이에요.",
-      "미국 중앙은행(연준)이 수요일 금리를 동결할 전망이에요. 지난달 3년 만에 금리를 올렸어요.",
-      "AI 투자를 위한 대규모 차입 부담 우려로 AI 관련주는 여전히 등락이 커요.",
-      "구글·마이크로소프트는 수요일, 아마존은 목요일에 실적을 발표해요."
+      "미국 3대 지수가 반도체 강세에 힘입어 모두 상승 마감했어요.",
+      "필라델피아 반도체지수가 3.6% 올라 3거래일 연속 상승했어요.",
+      "AI 투자 기대가 되살아나며 AMD·브로드컴 등 반도체주가 크게 올랐어요."
     ]
   },
   "domestic": {
-    "direction": "혼조 (조심스러운 관망)",
-    "tone": "flat",
+    "direction": "상승 우세",
+    "tone": "up",
     "rationale": [
-      "어제 코스피는 외국인이 약 6,955억원을 팔며 1.46% 내린 5,469로 마감했어요. 종가 기준 7개월 만의 최저예요.",
-      "간밤 미국 증시와 엔비디아는 올랐지만, 연준 회의와 빅테크 실적을 앞두고 외국인 매도가 이어질지가 관건이에요."
+      "미국 반도체주가 크게 올라 오늘 국내 반도체 대형주에 우호적인 분위기예요.",
+      "환율·금리 수치는 확인하지 못해, 개장 후 외국인 매매 방향을 꼭 확인하세요."
     ],
     "headlines": [
-      "코스피, 외국인 매도에 5,500선 아래로 내려왔어요. 하락 종목이 상승 종목의 약 8배였어요.",
-      "한 달간 코스피가 21.6% 떨어져 미국 증시보다 훨씬 약했어요.",
-      "AI 투자 둔화 우려로 메모리 반도체 기업에 부담이 커졌어요."
+      "미국 반도체 강세가 국내 반도체주 투자심리에 긍정적으로 작용할 전망이에요.",
+      "AI 투자 기대감이 이어지며 SK하이닉스 등 관련주가 주목받고 있어요."
     ],
-    "levels": "5,500선 회복 여부가 첫 관문이에요. 못 넘으면 5,400선 아래도 열어두세요."
+    "levels": "개장 직후 외국인 순매수 여부가 오늘 방향의 열쇠예요."
   },
   "semis": {
     "samsung": {
       "name": "삼성전자",
       "ticker": "005930",
-      "direction": "관망",
-      "tone": "flat",
-      "momentum": "어제 1.16% 내린 213,000원에 마감했어요. 엔비디아 반등은 긍정적이지만 외국인 매도가 변수예요.",
-      "strategy": "신규 매수는 서두르지 말고, 외국인이 사는 쪽으로 돌아서는지 보고 판단하세요. 보유 중이면 유지해도 좋아요."
+      "direction": "상승",
+      "tone": "up",
+      "momentum": "미국 반도체지수가 3.6% 오른 훈풍이 이어질지가 관건이에요.",
+      "strategy": "보유 중이면 유지, 신규 매수는 개장 후 외국인 수급을 보고 나눠서 접근하세요."
     },
     "hynix": {
       "name": "SK하이닉스",
       "ticker": "000660",
-      "direction": "관망",
-      "tone": "flat",
-      "momentum": "어제 장 초반엔 올랐다가 1,275,000원(-0.16%)으로 마감했어요. 일본 키옥시아 지분 매각 차익으로 특별배당을 줄 거란 기대가 있어요.",
-      "strategy": "배당 기대로 오를 수 있지만 AI 투자 둔화 우려도 있으니 큰 비중으로 사기보다 나눠서 접근하세요."
+      "direction": "상승",
+      "tone": "up",
+      "momentum": "AI 투자 심리 회복과 브로드컴 강세가 힘이 돼요.",
+      "strategy": "급등 출발하면 추격 매수는 피하고, 보유분은 일부 수익 실현도 고려하세요."
     }
   },
   "top_caps": {
@@ -96,51 +104,51 @@
         "ticker": "095570",
         "name": "AJ네트웍스",
         "market": "KOSPI",
-        "close": "4,005",
+        "close": "4,030",
         "change_pct": 0.25,
         "support": "3,905",
         "resistance": "4,366",
-        "score": 62
+        "score": 58
       },
       {
         "ticker": "027410",
         "name": "BGF",
         "market": "KOSPI",
-        "close": "3,425",
-        "change_pct": 0.44,
+        "close": "3,440",
+        "change_pct": 0.15,
         "support": "3,385",
         "resistance": "4,075",
-        "score": 84
+        "score": 70
       },
       {
         "ticker": "282330",
         "name": "BGF리테일",
         "market": "KOSPI",
-        "close": "126,400",
-        "change_pct": -1.48,
+        "close": "124,600",
+        "change_pct": -0.48,
         "support": "107,171",
         "resistance": "144,392",
-        "score": 41
+        "score": 40
       },
       {
         "ticker": "138930",
         "name": "BNK금융지주",
         "market": "KOSPI",
-        "close": "12,270",
-        "change_pct": 4.78,
+        "close": "12,910",
+        "change_pct": 1.81,
         "support": "11,690",
         "resistance": "16,590",
-        "score": 70
+        "score": 65
       },
       {
         "ticker": "001040",
         "name": "CJ",
         "market": "KOSPI",
-        "close": "116,400",
-        "change_pct": 1.22,
+        "close": "116,100",
+        "change_pct": 2.65,
         "support": "111,600",
         "resistance": "137,793",
-        "score": 66
+        "score": 68
       }
     ],
     "kosdaq": [
@@ -148,58 +156,58 @@
         "ticker": "060310",
         "name": "3S",
         "market": "KOSDAQ",
-        "close": "1,252",
-        "change_pct": -0.08,
+        "close": "1,269",
+        "change_pct": 0.08,
         "support": "1,073",
         "resistance": "1,311",
-        "score": 51
+        "score": 59
       },
       {
         "ticker": "054620",
         "name": "APS",
         "market": "KOSDAQ",
-        "close": "3,290",
-        "change_pct": -0.9,
-        "support": "3,200",
+        "close": "3,325",
+        "change_pct": -1.04,
+        "support": "3,280",
         "resistance": "4,090",
-        "score": 70
+        "score": 69
       },
       {
         "ticker": "079810",
         "name": "APS이노베이션",
         "market": "KOSDAQ",
-        "close": "3,340",
-        "change_pct": 3.25,
+        "close": "3,345",
+        "change_pct": 0.9,
         "support": "3,070",
-        "resistance": "3,975",
-        "score": 72
+        "resistance": "3,819",
+        "score": 70
       },
       {
         "ticker": "265520",
         "name": "AP시스템",
         "market": "KOSDAQ",
-        "close": "16,980",
-        "change_pct": 5.47,
+        "close": "17,350",
+        "change_pct": 2.91,
         "support": "15,600",
-        "resistance": "21,200",
-        "score": 78
+        "resistance": "20,393",
+        "score": 70
       },
       {
         "ticker": "211270",
         "name": "AP위성",
         "market": "KOSDAQ",
-        "close": "8,790",
-        "change_pct": 0,
+        "close": "8,770",
+        "change_pct": -1.24,
         "support": "7,509",
         "resistance": "9,949",
-        "score": 76
+        "score": 79
       }
     ],
-    "as_of": "2026-10-27"
+    "as_of": "2026-10-28"
   },
   "checklist": [
-    "외국인이 오늘도 파는지, 사는 쪽으로 바뀌는지 확인하세요.",
-    "코스피가 5,500선을 다시 넘는지 보세요.",
-    "수요일 연준 금리 발표와 미국 대형 기술기업 실적 전에는 큰 베팅을 줄이세요."
+    "개장 직후 외국인이 사는지 파는지 확인하기",
+    "삼성전자·SK하이닉스가 미국 반도체 상승을 따라가는지 보기",
+    "급등 출발 시 추격 매수 대신 한 박자 쉬어가기"
   ]
 }
