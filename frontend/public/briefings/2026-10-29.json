@@ -1,0 +1,215 @@
+{
+  "date": "2026-10-29",
+  "generated_at": "2026-10-29T09:48:18+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,743.98",
+        "change_pct": 0.28
+      },
+      {
+        "name": "Nasdaq",
+        "value": "26,549.85",
+        "change_pct": 0.27
+      },
+      {
+        "name": "Dow",
+        "value": "52,475.10",
+        "change_pct": 0.19
+      }
+    ],
+    "sox": {
+      "value": "11,684.00",
+      "change_pct": 1.76,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "-",
+          "change_pct": -1.17
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "-",
+          "change_pct": 2.77
+        },
+        {
+          "name": "마이크론 (MU)",
+          "value": "-",
+          "change_pct": 5.86
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "1,337.7원",
+        "change": "+14원 (어제 국내 종가)",
+        "tone": "down"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "5%대",
+        "change": "장기금리 높은 수준",
+        "tone": "down"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "-",
+        "change": "약 +3% 이상",
+        "tone": "down"
+      }
+    ],
+    "headlines": [
+      "미국 연준이 기준금리를 3.75~4.00%로 동결했고, 이후 뉴욕증시 3대 지수가 3일 연속 올랐어요.",
+      "SK하이닉스 ADR이 실적 발표 후 13.3% 급등하고 마이크론도 5.9% 올라 반도체주가 강했어요.",
+      "오라클이 투자자의 날 발표로 10.7% 급등했어요. 엔비디아·애플 등 일부 대형주는 약세였어요."
+    ]
+  },
+  "domestic": {
+    "direction": "상승 우세 (단, 급등 후 변동 주의)",
+    "tone": "up",
+    "rationale": [
+      "어제 코스피가 6.63% 급등해 6,012.44로 마감했고, 미국 반도체 지수도 올라 반도체 중심 훈풍이 이어질 가능성이 커요.",
+      "다만 하루에 크게 오른 만큼 차익을 실현하려는 매물이 나올 수 있고, 미국 장기금리와 유가 상승은 부담이에요."
+    ],
+    "headlines": [
+      "코스피가 SK하이닉스의 사상 최대 실적 영향으로 10거래일 만에 6,000선을 되찾았어요.",
+      "외국인이 코스피에서 약 8,100억 원어치를 순매수했어요.",
+      "코스닥도 3.69% 올라 771.28로 마감했어요."
+    ],
+    "levels": "코스피 6,000선 유지 여부가 핵심 (어제 종가 6,012.44)"
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "상승 우세",
+      "tone": "up",
+      "momentum": "SK하이닉스 실적 효과로 어제 반도체주가 함께 올랐고, 미국 반도체 지수도 강세예요. 외국인 매수가 이어지는지가 관건이에요.",
+      "strategy": "보유 중이라면 유지하세요. 어제 급등한 만큼 새로 사는 건 장 초반 흐름을 보고 천천히 하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "강세 지속, 단기 과열 주의",
+      "tone": "up",
+      "momentum": "분기 매출 100조 원의 역대급 실적과 주주환원 발표로 미국 ADR이 13.3% 올랐어요.",
+      "strategy": "보유자는 유지하되 크게 오르면 일부 수익을 챙기는 것도 방법이에요. 급등 직후라 추격 매수는 조심하세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,010",
+        "change_pct": -0.87,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 58
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,400",
+        "change_pct": -2.02,
+        "support": null,
+        "resistance": "4,075",
+        "score": 63
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "125,600",
+        "change_pct": 0.24,
+        "support": "107,171",
+        "resistance": "144,392",
+        "score": 55
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "13,130",
+        "change_pct": -0.15,
+        "support": "11,690",
+        "resistance": "15,640",
+        "score": 56
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "111,300",
+        "change_pct": -3.13,
+        "support": null,
+        "resistance": "138,600",
+        "score": 63
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,214",
+        "change_pct": -3.27,
+        "support": "1,073",
+        "resistance": "1,311",
+        "score": 48
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,495",
+        "change_pct": 0.43,
+        "support": "3,280",
+        "resistance": "4,099",
+        "score": 62
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,215",
+        "change_pct": -3.45,
+        "support": "3,070",
+        "resistance": "3,819",
+        "score": 55
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "17,510",
+        "change_pct": -2.61,
+        "support": "15,600",
+        "resistance": "20,393",
+        "score": 50
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "8,190",
+        "change_pct": -2.96,
+        "support": "7,509",
+        "resistance": "8,860",
+        "score": 67
+      }
+    ],
+    "as_of": "2026-10-29"
+  },
+  "checklist": [
+    "코스피가 어제 얻은 6,000선을 지키는지 보세요.",
+    "외국인이 어제처럼 계속 사는지 확인하세요.",
+    "원/달러 환율이 더 오르지 않는지 보세요. 주가와 함께 오르는 흔치 않은 흐름이에요.",
+    "급등한 반도체주에서 차익 매물이 나오는지 장 초반 흐름을 보세요."
+  ]
+}
