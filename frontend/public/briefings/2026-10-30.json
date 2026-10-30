@@ -1,0 +1,212 @@
+{
+  "date": "2026-10-30",
+  "generated_at": "2026-10-30T09:50:27+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,720.39",
+        "change_pct": -0.3
+      },
+      {
+        "name": "Nasdaq",
+        "value": "26,184.72",
+        "change_pct": -1.38
+      },
+      {
+        "name": "Dow",
+        "value": "52,342.56",
+        "change_pct": -0.25
+      }
+    ],
+    "sox": {
+      "value": "확인 못 함",
+      "change_pct": null,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "확인 못 함",
+          "change_pct": null
+        },
+        {
+          "name": "TSMC (TSM)",
+          "value": "확인 못 함",
+          "change_pct": null
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "확인 못 함",
+          "change_pct": null
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "확인 못 함",
+        "change": "-",
+        "tone": "flat"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "확인 못 함",
+        "change": "-",
+        "tone": "flat"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "확인 못 함",
+        "change": "-",
+        "tone": "flat"
+      }
+    ],
+    "headlines": [
+      "미국 증시가 3대 지수 모두 내렸어요. 특히 기술주 중심의 나스닥이 1.38% 크게 떨어졌어요.",
+      "구글 모회사 알파벳이 12% 넘게 급락했고, 엔비디아·마이크론·아마존도 함께 내렸어요.",
+      "하루 전(28일)에는 반도체지수가 1.76% 올랐고 SK하이닉스 미국 예탁증서(ADR)가 13% 넘게 뛰었어요."
+    ]
+  },
+  "domestic": {
+    "direction": "하락 출발 우려",
+    "tone": "down",
+    "rationale": [
+      "미국 기술주가 크게 내려서 오늘 아침 반도체·IT 대형주가 약하게 시작할 수 있어요.",
+      "환율·외국인 수급 숫자는 확인하지 못했어요. 장 시작 후 외국인이 파는지 먼저 확인하세요."
+    ],
+    "headlines": [
+      "국내 뉴스는 이번 조사에서 믿을 만한 내용을 확인하지 못했어요."
+    ],
+    "levels": "코스피 지수 지지·저항 수치는 확인하지 못했어요. 시초가보다 더 밀리는지 지켜보세요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "약세 가능",
+      "tone": "down",
+      "momentum": "미국 기술주 급락과 엔비디아 하락이 부담이에요. 외국인 매도 여부가 핵심이에요.",
+      "strategy": "오늘은 신규로 서두르지 말고 개장 후 흐름을 보고 판단하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "혼조",
+      "tone": "flat",
+      "momentum": "전날 ADR이 크게 올라 기대감은 있지만, 어젯밤 마이크론 하락이 부담이에요.",
+      "strategy": "보유 중이면 지켜보고, 급하게 추가로 사지는 마세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,010",
+        "change_pct": -0.25,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 60
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,430",
+        "change_pct": -1.01,
+        "support": "3,385",
+        "resistance": "4,075",
+        "score": 66
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "132,500",
+        "change_pct": 2.63,
+        "support": "125,916",
+        "resistance": "144,365",
+        "score": 67
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "13,320",
+        "change_pct": -1.41,
+        "support": "11,690",
+        "resistance": "15,953",
+        "score": 60
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "110,100",
+        "change_pct": -2.65,
+        "support": "107,900",
+        "resistance": "134,300",
+        "score": 71
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,232",
+        "change_pct": -1.68,
+        "support": "1,073",
+        "resistance": "1,311",
+        "score": 54
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,480",
+        "change_pct": -3.2,
+        "support": "3,280",
+        "resistance": "4,099",
+        "score": 55
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,160",
+        "change_pct": -2.62,
+        "support": "3,070",
+        "resistance": "3,605",
+        "score": 61
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "16,940",
+        "change_pct": -3.14,
+        "support": "15,600",
+        "resistance": "21,200",
+        "score": 58
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "8,170",
+        "change_pct": -6.63,
+        "support": "6,700",
+        "resistance": "8,860",
+        "score": 64
+      }
+    ],
+    "as_of": "2026-10-30"
+  },
+  "checklist": [
+    "개장 직후 삼성전자·SK하이닉스가 어제보다 얼마나 빠지는지 보기",
+    "외국인이 사는지 파는지 확인하기",
+    "미국 기술주 하락이 하루로 끝나는지, 이어지는지 지켜보기"
+  ]
+}
