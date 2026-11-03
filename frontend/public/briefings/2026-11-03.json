@@ -1,0 +1,214 @@
+{
+  "date": "2026-11-03",
+  "generated_at": "2026-11-03T11:54:01+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,541.40",
+        "change_pct": -0.51
+      },
+      {
+        "name": "Nasdaq",
+        "value": "25,164.32",
+        "change_pct": -1.07
+      },
+      {
+        "name": "Dow",
+        "value": "51,983.98",
+        "change_pct": 0.41
+      }
+    ],
+    "sox": {
+      "value": "10,328.33",
+      "change_pct": -3.37,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "-",
+          "change_pct": -1.26
+        },
+        {
+          "name": "TSMC (TSM)",
+          "value": "-",
+          "change_pct": -1.85
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "-",
+          "change_pct": -1.18
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "확인 불가",
+        "change": "-",
+        "tone": "flat"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "하락(수치 미확인)",
+        "change": "하락",
+        "tone": "flat"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "$96.46",
+        "change": "-7.4%",
+        "tone": "up"
+      }
+    ],
+    "headlines": [
+      "미국 증시 혼조: 다우만 오르고 나스닥 1.07%↓. 반도체지수는 3.37% 급락해 사흘간 약 12% 하락",
+      "메타·오라클·알파벳이 AI 투자 자금 마련을 위해 증자·회사채 발행에 나서며 부담이 커졌고 오라클은 약 9% 하락",
+      "미·이란 종전 협상 기대로 국제유가가 7% 넘게 급락. 인텔은 매출 전망 부진으로 8.8% 추가 하락"
+    ]
+  },
+  "domestic": {
+    "direction": "하락 우세",
+    "tone": "down",
+    "rationale": [
+      "미국 반도체주가 크게 빠지고 코스피 야간선물도 3%대 하락해, 오늘 반도체 대형주 중심으로 약하게 시작할 가능성이 큽니다.",
+      "유가 급락은 물가 부담을 덜어주는 좋은 소식이지만, 반도체 불안을 완전히 상쇄하긴 어렵습니다."
+    ],
+    "headlines": [
+      "코스피 야간선물 약 3.8% 하락, 미국 상장 한국 ETF(EWY)도 0.8% 하락",
+      "미국 중간선거(3일)와 6일 미국 고용지표 발표를 앞두고 관망 심리 확대 예상",
+      "마이크론 -5.8% 등 메모리 관련주 약세가 국내 반도체주에 부담"
+    ],
+    "levels": "수치로 확인된 지지/저항선은 없음. 반도체 낙폭이 오늘 장의 핵심 변수."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "하락",
+      "tone": "down",
+      "momentum": "미국 반도체지수 급락과 AI 투자 자금 부담 우려가 겹쳐 약하게 출발할 가능성이 큽니다.",
+      "strategy": "급락 출발 시 서두르지 말고 지켜보세요. 신규 매수는 장 초반 낙폭이 진정된 뒤에 판단하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "하락",
+      "tone": "down",
+      "momentum": "미국에 상장된 SK하이닉스 ADR이 1% 하락했고 마이크론도 5.8% 떨어져 메모리 쪽 부담이 큽니다.",
+      "strategy": "보유 중이면 흔들림에 대비해 비중을 점검하고, 추가 매수는 서두르지 마세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,030",
+        "change_pct": -0.74,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 50
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,505",
+        "change_pct": -0.99,
+        "support": "3,375",
+        "resistance": "4,072",
+        "score": 61
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "140,400",
+        "change_pct": 2.48,
+        "support": "125,916",
+        "resistance": "144,088",
+        "score": 55
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "12,940",
+        "change_pct": -1.45,
+        "support": "11,690",
+        "resistance": "16,190",
+        "score": 53
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "113,700",
+        "change_pct": -0.7,
+        "support": "107,300",
+        "resistance": "133,600",
+        "score": 62
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,313",
+        "change_pct": -1.94,
+        "support": "1,072",
+        "resistance": "1,394",
+        "score": 63
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,760",
+        "change_pct": -3.71,
+        "support": "3,663",
+        "resistance": "4,099",
+        "score": 78
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,125",
+        "change_pct": -1.57,
+        "support": "3,070",
+        "resistance": "3,605",
+        "score": 66
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "16,370",
+        "change_pct": -3.88,
+        "support": "15,600",
+        "resistance": "21,000",
+        "score": 51
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "9,670",
+        "change_pct": 20.88,
+        "support": "8,020",
+        "resistance": "10,063",
+        "score": 70
+      }
+    ],
+    "as_of": "2026-11-03"
+  },
+  "checklist": [
+    "개장 직후 삼성전자·SK하이닉스 낙폭이 커지는지, 줄어드는지 확인하기",
+    "외국인이 많이 파는지 여부 보기 (반도체 약세가 시장 전체로 번지는지 판단)",
+    "오늘 미국 중간선거 결과와 6일 고용지표 발표 전까지는 무리한 매수 자제하기"
+  ]
+}
