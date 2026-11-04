@@ -1,102 +1,102 @@
 {
-  "date": "2026-11-03",
-  "generated_at": "2026-11-03T11:54:01+09:00",
+  "date": "2026-11-04",
+  "generated_at": "2026-11-04T10:14:24+09:00",
   "is_sample": false,
   "global": {
     "indices": [
       {
         "name": "S&P 500",
-        "value": "7,541.40",
-        "change_pct": -0.51
+        "value": "7,568.92",
+        "change_pct": 0.36
       },
       {
         "name": "Nasdaq",
-        "value": "25,164.32",
-        "change_pct": -1.07
+        "value": "25,372.01",
+        "change_pct": 0.83
       },
       {
         "name": "Dow",
-        "value": "51,983.98",
-        "change_pct": 0.41
+        "value": "51,786.72",
+        "change_pct": -0.38
       }
     ],
     "sox": {
-      "value": "10,328.33",
-      "change_pct": -3.37,
+      "value": "10,687.95",
+      "change_pct": 3.48,
       "components": [
         {
           "name": "엔비디아 (NVDA)",
-          "value": "-",
-          "change_pct": -1.26
-        },
-        {
-          "name": "TSMC (TSM)",
-          "value": "-",
-          "change_pct": -1.85
+          "value": "206.65",
+          "change_pct": 2.27
         },
         {
           "name": "브로드컴 (AVGO)",
           "value": "-",
-          "change_pct": -1.18
+          "change_pct": 3.1
+        },
+        {
+          "name": "SK하이닉스 ADR",
+          "value": "150.79",
+          "change_pct": 2.09
         }
       ]
     },
     "macro": [
       {
         "name": "원/달러 환율",
-        "value": "확인 불가",
-        "change": "-",
+        "value": "1,345.5원",
+        "change": "-0.5원",
         "tone": "flat"
       },
       {
         "name": "미 국채 10년물",
-        "value": "하락(수치 미확인)",
-        "change": "하락",
-        "tone": "flat"
+        "value": "4.95%",
+        "change": "+5.8bp",
+        "tone": "down"
       },
       {
         "name": "WTI 유가",
-        "value": "$96.46",
-        "change": "-7.4%",
-        "tone": "up"
+        "value": "$96.1",
+        "change": "-1% 안팎",
+        "tone": "flat"
       }
     ],
     "headlines": [
-      "미국 증시 혼조: 다우만 오르고 나스닥 1.07%↓. 반도체지수는 3.37% 급락해 사흘간 약 12% 하락",
-      "메타·오라클·알파벳이 AI 투자 자금 마련을 위해 증자·회사채 발행에 나서며 부담이 커졌고 오라클은 약 9% 하락",
-      "미·이란 종전 협상 기대로 국제유가가 7% 넘게 급락. 인텔은 매출 전망 부진으로 8.8% 추가 하락"
+      "반도체주가 크게 반등해 나스닥과 S&P500은 올랐고, 애플 실적 전망 실망으로 다우는 내렸어요.",
+      "미국 중간선거 개표를 앞두고 관망 분위기예요. 민주당이 크게 이기면 AI 관련주에 부담이 될 수 있다는 분석이 나와요.",
+      "AMD는 장 마감 후 실적을 발표했고, 시간외에서 주가가 큰 폭으로 올랐어요."
     ]
   },
   "domestic": {
-    "direction": "하락 우세",
-    "tone": "down",
+    "direction": "반등 시도 (변동성 큼)",
+    "tone": "flat",
     "rationale": [
-      "미국 반도체주가 크게 빠지고 코스피 야간선물도 3%대 하락해, 오늘 반도체 대형주 중심으로 약하게 시작할 가능성이 큽니다.",
-      "유가 급락은 물가 부담을 덜어주는 좋은 소식이지만, 반도체 불안을 완전히 상쇄하긴 어렵습니다."
+      "간밤 미국 반도체지수가 3.5% 올라 삼성전자·SK하이닉스에 반등 재료가 돼요. 환율은 1,340원대 초반으로 안정적이에요.",
+      "어제 코스피는 외국인이 약 1.5조원 팔며 3.6% 급락했어요. 외국인 매도가 이어지는지가 관건이고, 미국 금리(4.95%)와 중간선거 결과도 부담이에요."
     ],
     "headlines": [
-      "코스피 야간선물 약 3.8% 하락, 미국 상장 한국 ETF(EWY)도 0.8% 하락",
-      "미국 중간선거(3일)와 6일 미국 고용지표 발표를 앞두고 관망 심리 확대 예상",
-      "마이크론 -5.8% 등 메모리 관련주 약세가 국내 반도체주에 부담"
+      "코스피 3.59% 급락한 5,648선 마감, 코스닥도 4% 넘게 하락했어요.",
+      "어제 외국인은 코스피에서 약 1.5조원, 기관은 약 5,100억원을 순매도했고 개인이 1.66조원을 사들였어요.",
+      "증권가는 중간선거와 AI 기업 상장 일정이 끝나는 11월 중하순 이후 외국인이 돌아올 수 있다고 봐요."
     ],
-    "levels": "수치로 확인된 지지/저항선은 없음. 반도체 낙폭이 오늘 장의 핵심 변수."
+    "levels": "코스피 지지 5,600(더 아래 5,500), 회복 5,700 → 다음 저항 5,800 / 코스닥 지지 700"
   },
   "semis": {
     "samsung": {
       "name": "삼성전자",
       "ticker": "005930",
-      "direction": "하락",
-      "tone": "down",
-      "momentum": "미국 반도체지수 급락과 AI 투자 자금 부담 우려가 겹쳐 약하게 출발할 가능성이 큽니다.",
-      "strategy": "급락 출발 시 서두르지 말고 지켜보세요. 신규 매수는 장 초반 낙폭이 진정된 뒤에 판단하세요."
+      "direction": "반등 시도",
+      "tone": "flat",
+      "momentum": "어제 4.15% 내린 219,500원. 간밤 미국 반도체 반등은 호재지만 외국인 매도와 공매도 급증(전일 +84%)은 부담이에요.",
+      "strategy": "급하게 추격 매수하지 말고, 외국인 매수가 돌아오는지 장 초반 확인 후 판단하세요. 보유 중이라면 유지하세요."
     },
     "hynix": {
       "name": "SK하이닉스",
       "ticker": "000660",
-      "direction": "하락",
-      "tone": "down",
-      "momentum": "미국에 상장된 SK하이닉스 ADR이 1% 하락했고 마이크론도 5.8% 떨어져 메모리 쪽 부담이 큽니다.",
-      "strategy": "보유 중이면 흔들림에 대비해 비중을 점검하고, 추가 매수는 서두르지 마세요."
+      "direction": "반등 시도",
+      "tone": "flat",
+      "momentum": "어제 5.03% 내린 1,398,000원. 미국에 상장된 ADR이 2% 올라 시작은 나쁘지 않을 수 있어요. 낙폭이 커서 변동성이 큽니다.",
+      "strategy": "오르내림이 크니 한 번에 사지 말고 나눠서 접근하세요. 반등 시 일부 이익 실현도 방법이에요."
     }
   },
   "top_caps": {
@@ -109,47 +109,47 @@
         "change_pct": -0.74,
         "support": "3,905",
         "resistance": "4,366",
-        "score": 50
+        "score": 53
       },
       {
         "ticker": "027410",
         "name": "BGF",
         "market": "KOSPI",
-        "close": "3,505",
-        "change_pct": -0.99,
+        "close": "3,535",
+        "change_pct": -0.7,
         "support": "3,375",
         "resistance": "4,072",
-        "score": 61
+        "score": 51
       },
       {
         "ticker": "282330",
         "name": "BGF리테일",
         "market": "KOSPI",
-        "close": "140,400",
-        "change_pct": 2.48,
+        "close": "147,500",
+        "change_pct": 3.58,
         "support": "125,916",
-        "resistance": "144,088",
-        "score": 55
+        "resistance": "156,600",
+        "score": 46
       },
       {
         "ticker": "138930",
         "name": "BNK금융지주",
         "market": "KOSPI",
-        "close": "12,940",
-        "change_pct": -1.45,
+        "close": "13,030",
+        "change_pct": 0.46,
         "support": "11,690",
-        "resistance": "16,190",
-        "score": 53
+        "resistance": "16,110",
+        "score": 49
       },
       {
         "ticker": "001040",
         "name": "CJ",
         "market": "KOSPI",
-        "close": "113,700",
-        "change_pct": -0.7,
+        "close": "114,000",
+        "change_pct": 0.18,
         "support": "107,300",
         "resistance": "133,600",
-        "score": 62
+        "score": 55
       }
     ],
     "kosdaq": [
@@ -157,58 +157,58 @@
         "ticker": "060310",
         "name": "3S",
         "market": "KOSDAQ",
-        "close": "1,313",
-        "change_pct": -1.94,
+        "close": "1,275",
+        "change_pct": -3.04,
         "support": "1,072",
-        "resistance": "1,394",
-        "score": 63
+        "resistance": "1,311",
+        "score": 59
       },
       {
         "ticker": "054620",
         "name": "APS",
         "market": "KOSDAQ",
-        "close": "3,760",
-        "change_pct": -3.71,
+        "close": "3,820",
+        "change_pct": 1.06,
         "support": "3,663",
-        "resistance": "4,099",
-        "score": 78
+        "resistance": "4,098",
+        "score": 85
       },
       {
         "ticker": "079810",
         "name": "APS이노베이션",
         "market": "KOSDAQ",
-        "close": "3,125",
-        "change_pct": -1.57,
-        "support": "3,070",
-        "resistance": "3,605",
-        "score": 66
+        "close": "3,055",
+        "change_pct": -3.48,
+        "support": "2,790",
+        "resistance": "3,105",
+        "score": 55
       },
       {
         "ticker": "265520",
         "name": "AP시스템",
         "market": "KOSDAQ",
-        "close": "16,370",
-        "change_pct": -3.88,
+        "close": "16,230",
+        "change_pct": -1.28,
         "support": "15,600",
-        "resistance": "21,000",
+        "resistance": "18,110",
         "score": 51
       },
       {
         "ticker": "211270",
         "name": "AP위성",
         "market": "KOSDAQ",
-        "close": "9,670",
-        "change_pct": 20.88,
-        "support": "8,020",
-        "resistance": "10,063",
-        "score": 70
+        "close": "10,440",
+        "change_pct": -0.1,
+        "support": "6,690",
+        "resistance": "12,360",
+        "score": 61
       }
     ],
-    "as_of": "2026-11-03"
+    "as_of": "2026-11-04"
   },
   "checklist": [
-    "개장 직후 삼성전자·SK하이닉스 낙폭이 커지는지, 줄어드는지 확인하기",
-    "외국인이 많이 파는지 여부 보기 (반도체 약세가 시장 전체로 번지는지 판단)",
-    "오늘 미국 중간선거 결과와 6일 고용지표 발표 전까지는 무리한 매수 자제하기"
+    "개장 직후 외국인이 사는지 파는지 확인하기",
+    "코스피 5,600선 지지 여부와 5,700 회복 여부 보기",
+    "미국 중간선거 개표 결과와 미국 금리 움직임 체크하기"
   ]
 }
