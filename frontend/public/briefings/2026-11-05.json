@@ -1,0 +1,208 @@
+{
+  "date": "2026-11-05",
+  "generated_at": "2026-11-05T10:27:57+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,688.62",
+        "change_pct": 1.58
+      },
+      {
+        "name": "Nasdaq",
+        "value": "25,736.51",
+        "change_pct": 1.44
+      },
+      {
+        "name": "Dow",
+        "value": "53,356.12",
+        "change_pct": 3.03
+      }
+    ],
+    "sox": {
+      "value": "10,268.65",
+      "change_pct": -3.13,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "-",
+          "change_pct": -3.17
+        },
+        {
+          "name": "마이크론 (MU)",
+          "value": "-",
+          "change_pct": -7
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "확인 못함",
+        "change": null,
+        "tone": "flat"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "4.89%",
+        "change": "-6bp",
+        "tone": "up"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "$88.12",
+        "change": "-8.3%",
+        "tone": "up"
+      }
+    ],
+    "headlines": [
+      "미국 중간선거에서 민주당이 상원·하원 다수당을 차지해 불확실성이 줄며 다우가 3% 급등했어요.",
+      "AI 데이터센터 규제가 강해질 거란 걱정에 반도체주만 내렸어요(반도체지수 -3%, 마이크론 -7%).",
+      "이란 전쟁이 끝날 거란 기대로 국제 유가가 8% 넘게 떨어졌고 금리·달러도 함께 내렸어요."
+    ]
+  },
+  "domestic": {
+    "direction": "혼조 (반도체 부담)",
+    "tone": "flat",
+    "rationale": [
+      "미국 증시 전체는 크게 올랐고 유가·금리가 내려 시장 분위기는 좋아요.",
+      "다만 코스피 비중이 큰 반도체가 미국에서 약해 지수 상승을 누를 수 있어요."
+    ],
+    "headlines": [
+      "미국발 반도체 약세로 삼성전자·SK하이닉스 흐름에 관심이 쏠려요.",
+      "유가 급락은 수입 비용을 낮춰 국내 경제에 긍정적이에요."
+    ],
+    "levels": "반도체 낙폭이 커지면 지수가 밀릴 수 있어 개장 직후 흐름을 먼저 확인하세요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "약세 주의",
+      "tone": "down",
+      "momentum": "미국 반도체지수가 3% 넘게 내려 오늘 시초가에 부담이 될 수 있어요.",
+      "strategy": "신규 매수는 서두르지 말고, 개장 후 낙폭이 줄어드는지 보고 판단하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "약세 주의",
+      "tone": "down",
+      "momentum": "메모리 대표주인 마이크론이 7% 급락해 같은 업종인 하이닉스에 부담이에요.",
+      "strategy": "보유 중이면 급하게 팔지 말고 변동폭이 큰 날임을 감안해 지켜보세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,010",
+        "change_pct": -1.23,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 55
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,540",
+        "change_pct": -1.12,
+        "support": "3,375",
+        "resistance": "4,069",
+        "score": 55
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "150,600",
+        "change_pct": 1.83,
+        "support": "125,702",
+        "resistance": "156,600",
+        "score": 42
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "13,120",
+        "change_pct": 0,
+        "support": "11,690",
+        "resistance": "15,640",
+        "score": 73
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "114,800",
+        "change_pct": -0.61,
+        "support": "107,300",
+        "resistance": "133,500",
+        "score": 59
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,207",
+        "change_pct": -5.04,
+        "support": "1,072",
+        "resistance": "1,311",
+        "score": 69
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,770",
+        "change_pct": -1.57,
+        "support": "3,663",
+        "resistance": "4,086",
+        "score": 93
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,090",
+        "change_pct": -6.08,
+        "support": "3,070",
+        "resistance": "3,605",
+        "score": 52
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "15,530",
+        "change_pct": -6.67,
+        "support": null,
+        "resistance": "18,110",
+        "score": 56
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "9,550",
+        "change_pct": -6.83,
+        "support": "8,020",
+        "resistance": "10,063",
+        "score": 59
+      }
+    ],
+    "as_of": "2026-11-05"
+  },
+  "checklist": [
+    "개장 직후 삼성전자·SK하이닉스가 얼마나 내리는지 확인하기",
+    "원/달러 환율이 어느 방향인지 보기",
+    "외국인이 사는지 파는지 보기"
+  ]
+}
