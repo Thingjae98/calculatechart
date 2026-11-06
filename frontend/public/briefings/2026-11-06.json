@@ -1,0 +1,203 @@
+{
+  "date": "2026-11-06",
+  "generated_at": "2026-11-06T10:30:06+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,353.73",
+        "change_pct": -4.36
+      },
+      {
+        "name": "Nasdaq",
+        "value": "24,315.00",
+        "change_pct": -5.5
+      },
+      {
+        "name": "Dow",
+        "value": "51,523.06",
+        "change_pct": -3.4
+      }
+    ],
+    "sox": {
+      "value": "확인 불가",
+      "change_pct": null,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "확인 불가",
+          "change_pct": -9.3
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "확인 불가",
+        "change": "확인 불가",
+        "tone": "flat"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "확인 불가",
+        "change": "확인 불가",
+        "tone": "flat"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "확인 불가",
+        "change": "확인 불가",
+        "tone": "flat"
+      }
+    ],
+    "headlines": [
+      "미국 증시가 AI 관련주 급락으로 크게 떨어졌어요. S&P500은 4% 넘게 내려 지난해 4월 이후 가장 큰 하락이에요.",
+      "AI 데이터센터 투자와 관련된 빚 걱정이 커지면서 엔비디아가 9% 넘게 떨어졌어요.",
+      "나스닥은 최고점 대비 10% 넘게 내려 '조정 구간'에 들어갔어요. 전날 다우가 크게 올랐던 흐름이 하루 만에 되돌려졌어요."
+    ]
+  },
+  "domestic": {
+    "direction": "하락 우세",
+    "tone": "down",
+    "rationale": [
+      "미국 AI·반도체주가 급락해 오늘 국내 반도체주와 코스피도 약하게 시작할 가능성이 커요.",
+      "환율·금리 수치는 확인하지 못했어요. 외국인 매도가 나오는지 먼저 살펴보세요."
+    ],
+    "headlines": [
+      "간밤 미국 AI·기술주 급락 영향이 국내 증시에 어떻게 반영될지가 오늘의 핵심이에요.",
+      "국내 개별 뉴스는 확인된 내용이 없어 생략해요."
+    ],
+    "levels": "개장 직후 코스피 낙폭과 외국인 순매도 규모를 먼저 확인하세요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "하락 주의",
+      "tone": "down",
+      "momentum": "엔비디아 등 미국 AI 반도체주 급락이 부담이에요. 개별 호재·악재는 확인하지 못했어요.",
+      "strategy": "개장 직후 급하게 사지 말고 하락이 멈추는지 지켜보세요. 보유 중이면 서두르지 말고 흐름을 확인하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "하락 주의",
+      "tone": "down",
+      "momentum": "AI 반도체 대표주라 미국 AI주 급락의 영향을 크게 받을 수 있어요.",
+      "strategy": "오늘은 관망이 안전해요. 신규 매수는 낙폭이 진정된 뒤에 생각하세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "3,965",
+        "change_pct": -1.37,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 52
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,425",
+        "change_pct": -3.52,
+        "support": "3,375",
+        "resistance": "4,069",
+        "score": 59
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "142,000",
+        "change_pct": -5.96,
+        "support": "125,702",
+        "resistance": "144,088",
+        "score": 66
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "12,560",
+        "change_pct": -4.41,
+        "support": "11,690",
+        "resistance": "15,500",
+        "score": 73
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "109,500",
+        "change_pct": -6.33,
+        "support": "107,300",
+        "resistance": "133,500",
+        "score": 58
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,125",
+        "change_pct": -4.42,
+        "support": "1,072",
+        "resistance": "1,311",
+        "score": 70
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,550",
+        "change_pct": -5.33,
+        "support": "3,264",
+        "resistance": "4,086",
+        "score": 70
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "2,900",
+        "change_pct": -7.64,
+        "support": "2,790",
+        "resistance": "3,105",
+        "score": 61
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "14,580",
+        "change_pct": -6.78,
+        "support": "14,390",
+        "resistance": "21,000",
+        "score": 69
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "8,360",
+        "change_pct": -10.4,
+        "support": "6,700",
+        "resistance": "8,860",
+        "score": 52
+      }
+    ],
+    "as_of": "2026-11-06"
+  },
+  "checklist": [
+    "개장 직후 코스피와 반도체주가 얼마나 내리는지 확인하기",
+    "외국인이 많이 파는지 살펴보기",
+    "무리한 신규 매수는 피하고 하락이 진정되는지 지켜보기"
+  ]
+}
