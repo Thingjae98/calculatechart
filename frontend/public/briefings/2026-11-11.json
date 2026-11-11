@@ -1,0 +1,207 @@
+{
+  "date": "2026-11-11",
+  "generated_at": "2026-11-11T10:12:49+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,520.93",
+        "change_pct": -0.38
+      },
+      {
+        "name": "Nasdaq",
+        "value": "25,065.87",
+        "change_pct": -0.74
+      },
+      {
+        "name": "Dow",
+        "value": "52,231.89",
+        "change_pct": -0.3
+      }
+    ],
+    "sox": {
+      "value": "9,998.33",
+      "change_pct": -0.36,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "168.80",
+          "change_pct": -5.53
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "331.98",
+          "change_pct": 3.91
+        },
+        {
+          "name": "AMD",
+          "value": "515.21",
+          "change_pct": 1.3
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "미 국채 10년물",
+        "value": "5% 상회",
+        "change": "물가 우려로 상승",
+        "tone": "down"
+      },
+      {
+        "name": "브렌트유",
+        "value": "$91.49",
+        "change": "장중 $90 아래까지 하락",
+        "tone": "flat"
+      }
+    ],
+    "headlines": [
+      "10월 물가가 예상보다 높게 나와 미국 증시가 3대 지수 모두 하락했어요.",
+      "엔비디아가 CEO 관련 이사회 조사 소식에 5%대 급락했어요(이틀간 약 9.6% 하락). 반면 브로드컴·AMD는 올랐어요.",
+      "연준 월러 이사가 12월 금리 인상 가능성을 언급해 금리 부담이 커졌어요."
+    ]
+  },
+  "domestic": {
+    "direction": "약세 출발 우려",
+    "tone": "down",
+    "rationale": [
+      "미국 물가 쇼크와 금리 급등, 엔비디아 급락이 겹쳐 외국인 매도가 이어질 수 있어요.",
+      "다만 반도체 지수 낙폭은 -0.36%로 작아서 충격이 제한적일 수도 있어요. 환율 수치는 확인하지 못했어요."
+    ],
+    "headlines": [
+      "SK하이닉스 미국 예탁증서(ADR)가 3.5% 하락해 국내 반도체 시작이 부담이에요.",
+      "11월 들어 외국인이 반도체 대형주를 연일 팔고 있다는 보도가 이어지고 있어요."
+    ],
+    "levels": "구체적 지지·저항 수치는 확인하지 못했어요. 외국인 매도 강도와 환율 움직임을 먼저 보세요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "약보합",
+      "tone": "flat",
+      "momentum": "엔비디아 급락과 금리 부담이 심리를 누르지만, 반도체 지수 전체 낙폭은 작았어요.",
+      "strategy": "개장 직후 급하게 사지 말고 외국인 매도가 잦아드는지 지켜보세요. 보유 중이면 유지."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "약세",
+      "tone": "down",
+      "momentum": "미국 상장 ADR이 3.5% 내려 오늘 시작이 불리해요. 엔비디아 악재 영향도 커요.",
+      "strategy": "신규 매수는 잠시 쉬고, 하락폭이 커지면 무리하게 추가 매수하지 마세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,090",
+        "change_pct": -0.85,
+        "support": "3,905",
+        "resistance": "4,366",
+        "score": 76
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,570",
+        "change_pct": 0.71,
+        "support": "3,375",
+        "resistance": "4,065",
+        "score": 66
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "138,400",
+        "change_pct": 1.17,
+        "support": "125,702",
+        "resistance": "144,088",
+        "score": 67
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "13,050",
+        "change_pct": 1.24,
+        "support": "11,690",
+        "resistance": "15,020",
+        "score": 73
+      },
+      {
+        "ticker": "001040",
+        "name": "CJ",
+        "market": "KOSPI",
+        "close": "111,500",
+        "change_pct": -0.54,
+        "support": "107,300",
+        "resistance": "131,500",
+        "score": 51
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,203",
+        "change_pct": 1.01,
+        "support": "1,072",
+        "resistance": "1,311",
+        "score": 67
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,690",
+        "change_pct": 2.22,
+        "support": "3,663",
+        "resistance": "4,086",
+        "score": 87
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,115",
+        "change_pct": 2.13,
+        "support": "3,070",
+        "resistance": "3,605",
+        "score": 65
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "15,750",
+        "change_pct": 5,
+        "support": "15,667",
+        "resistance": "18,110",
+        "score": 73
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "8,980",
+        "change_pct": 2.98,
+        "support": "7,540",
+        "resistance": "10,063",
+        "score": 66
+      }
+    ],
+    "as_of": "2026-11-11"
+  },
+  "checklist": [
+    "개장 직후 외국인이 순매도인지 순매수인지 확인하기",
+    "원/달러 환율이 오르는지(원화 약세) 보기",
+    "17일 엔비디아 실적 발표 전까지 변동성이 클 수 있어요"
+  ]
+}
