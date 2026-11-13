@@ -1,66 +1,69 @@
 {
-  "date": "2026-11-12",
-  "generated_at": "2026-11-12T11:13:19+09:00",
+  "date": "2026-11-13",
+  "generated_at": "2026-11-13T10:46:44+09:00",
   "is_sample": false,
   "global": {
     "indices": [
       {
         "name": "S&P 500",
-        "value": "-",
-        "change_pct": null
+        "value": "7,592.40",
+        "change_pct": -0.35
       },
       {
         "name": "Nasdaq",
-        "value": "-",
-        "change_pct": null
+        "value": "25,366.09",
+        "change_pct": -0.39
       },
       {
         "name": "Dow",
-        "value": "-",
-        "change_pct": null
+        "value": "52,297.09",
+        "change_pct": -0.36
       }
     ],
     "sox": {
-      "value": "-",
+      "value": "확인 못 함",
       "change_pct": null,
-      "components": []
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "166.19",
+          "change_pct": -4.34
+        }
+      ]
     },
     "macro": [
       {
-        "name": "원/달러 환율",
-        "value": "-",
-        "change": "-",
-        "tone": "flat"
-      },
-      {
-        "name": "미 국채 10년물",
-        "value": "-",
-        "change": "-",
-        "tone": "flat"
-      },
-      {
         "name": "WTI 유가",
-        "value": "-",
-        "change": "-",
-        "tone": "flat"
+        "value": "$88.74",
+        "change": "+2.55%",
+        "tone": "down"
+      },
+      {
+        "name": "브렌트유",
+        "value": "$95.82",
+        "change": "+3.30%",
+        "tone": "down"
       }
     ],
     "headlines": [
-      "오늘 아침에는 어젯밤 미국 증시 마감 수치를 확인하지 못해 숫자를 비워 두었어요.",
-      "정확한 지수와 환율은 증권사 앱이나 포털 금융 화면에서 직접 확인해 주세요."
+      "엔비디아 젠슨 황 CEO가 갑자기 물러난다고 밝혀 주가가 장중 13% 넘게 빠졌다가 4.34% 하락(166.19달러)으로 마감했어요.",
+      "AMD와 브로드컴은 엔비디아 대안으로 주목받아 5%대 올랐어요.",
+      "트럼프 대통령이 이란과 협상이 필요 없다고 해 유가가 이틀째 올랐고, 12월 미국 금리 인상 가능성이 높게 거론돼요."
     ]
   },
   "domestic": {
-    "direction": "확인 필요",
+    "direction": "혼조 · 변동성 주의",
     "tone": "flat",
     "rationale": [
-      "어젯밤 해외 시장 수치를 구하지 못해 오늘 방향을 단정하기 어려워요.",
-      "개장 직후 외국인이 사는지 파는지를 먼저 보고 판단하세요."
+      "미국 3대 지수가 모두 0.4% 안팎 내렸지만, 엔비디아 쇼크는 단기 흔들림에 그칠 것이라는 증권가 시각이 있어요.",
+      "유가 상승과 금리 인상 우려는 부담이에요. 환율 수치는 확인하지 못했어요."
     ],
     "headlines": [
-      "오늘 아침 국내 핵심 뉴스는 신뢰할 수 있는 자료를 확인하지 못했어요."
+      "코스피는 11월 12일 5,300선 안팎에서 마감했어요.",
+      "엔비디아 CEO 교체 소식이 반도체 업종 분위기를 좌우할 전망이에요.",
+      "오늘 밤 미국 생산자물가지수(PPI) 발표와 다음 주 엔비디아 실적이 큰 변수예요."
     ],
-    "levels": "수치를 확인하지 못해 지지선/저항선은 생략했어요."
+    "levels": "장 초반 반도체 흐름과 외국인 순매수 여부를 먼저 보세요."
   },
   "semis": {
     "samsung": {
@@ -68,16 +71,16 @@
       "ticker": "005930",
       "direction": "관망",
       "tone": "flat",
-      "momentum": "오늘 아침 확인된 새 소식이 없어요.",
-      "strategy": "개장 후 외국인 수급을 보고 움직이세요. 서두르지 말고 지켜보세요."
+      "momentum": "엔비디아 악재와 AMD·브로드컴 강세가 엇갈려 방향이 뚜렷하지 않아요.",
+      "strategy": "갑자기 사기보다 장 초반 외국인 수급을 확인한 뒤 판단하세요."
     },
     "hynix": {
       "name": "SK하이닉스",
       "ticker": "000660",
-      "direction": "관망",
-      "tone": "flat",
-      "momentum": "오늘 아침 확인된 새 소식이 없어요.",
-      "strategy": "미국 반도체주 흐름을 직접 확인한 뒤 판단하세요."
+      "direction": "변동성 주의",
+      "tone": "down",
+      "momentum": "엔비디아와 거래가 많은 종목이라 엔비디아 뉴스에 더 크게 흔들릴 수 있어요. 미국 상장 예탁증서도 하락했어요.",
+      "strategy": "무리한 추가 매수는 피하고 보유분은 흔들림을 지켜보세요."
     }
   },
   "top_caps": {
@@ -86,51 +89,51 @@
         "ticker": "095570",
         "name": "AJ네트웍스",
         "market": "KOSPI",
-        "close": "4,105",
-        "change_pct": 0,
-        "support": "4,082",
+        "close": "4,115",
+        "change_pct": 0.61,
+        "support": "3,866",
         "resistance": "4,366",
-        "score": 76
+        "score": 70
+      },
+      {
+        "ticker": "006840",
+        "name": "AK홀딩스",
+        "market": "KOSPI",
+        "close": "7,330",
+        "change_pct": -2.14,
+        "support": "6,202",
+        "resistance": "7,585",
+        "score": 71
       },
       {
         "ticker": "027410",
         "name": "BGF",
         "market": "KOSPI",
-        "close": "3,505",
-        "change_pct": -2.09,
+        "close": "3,530",
+        "change_pct": 0.86,
         "support": "3,375",
         "resistance": "4,065",
-        "score": 51
+        "score": 64
       },
       {
         "ticker": "282330",
         "name": "BGF리테일",
         "market": "KOSPI",
-        "close": "135,000",
-        "change_pct": -2.46,
+        "close": "140,400",
+        "change_pct": -2.09,
         "support": "125,525",
         "resistance": "144,088",
-        "score": 56
+        "score": 67
       },
       {
         "ticker": "138930",
         "name": "BNK금융지주",
         "market": "KOSPI",
-        "close": "12,630",
-        "change_pct": -2.24,
+        "close": "13,540",
+        "change_pct": 5.29,
         "support": "11,690",
-        "resistance": "15,020",
-        "score": 78
-      },
-      {
-        "ticker": "001040",
-        "name": "CJ",
-        "market": "KOSPI",
-        "close": "110,500",
-        "change_pct": -2.99,
-        "support": "107,300",
-        "resistance": "119,600",
-        "score": 59
+        "resistance": "15,953",
+        "score": 75
       }
     ],
     "kosdaq": [
@@ -138,58 +141,58 @@
         "ticker": "060310",
         "name": "3S",
         "market": "KOSDAQ",
-        "close": "1,212",
-        "change_pct": 0.33,
-        "support": "1,072",
+        "close": "1,229",
+        "change_pct": 0.74,
+        "support": "1,073",
         "resistance": "1,311",
-        "score": 58
+        "score": 63
       },
       {
         "ticker": "054620",
         "name": "APS",
         "market": "KOSDAQ",
-        "close": "3,665",
-        "change_pct": 1.38,
+        "close": "3,765",
+        "change_pct": 3.86,
         "support": "3,643",
-        "resistance": "4,086",
-        "score": 89
+        "resistance": "4,089",
+        "score": 85
       },
       {
         "ticker": "079810",
         "name": "APS이노베이션",
         "market": "KOSDAQ",
-        "close": "3,135",
-        "change_pct": -0.16,
-        "support": "3,070",
-        "resistance": "3,605",
-        "score": 58
+        "close": "3,220",
+        "change_pct": 3.21,
+        "support": "2,799",
+        "resistance": "3,823",
+        "score": 59
       },
       {
         "ticker": "265520",
         "name": "AP시스템",
         "market": "KOSDAQ",
-        "close": "16,010",
-        "change_pct": -0.56,
+        "close": "16,680",
+        "change_pct": 6.11,
         "support": "15,667",
         "resistance": "18,110",
-        "score": 68
+        "score": 66
       },
       {
         "ticker": "211270",
         "name": "AP위성",
         "market": "KOSDAQ",
-        "close": "8,640",
-        "change_pct": -3.68,
-        "support": "7,540",
-        "resistance": "10,063",
-        "score": 57
+        "close": "10,760",
+        "change_pct": 4.16,
+        "support": "10,500",
+        "resistance": "11,400",
+        "score": 71
       }
     ],
-    "as_of": "2026-11-12"
+    "as_of": "2026-11-13"
   },
   "checklist": [
-    "개장 직후 외국인이 순매수인지 순매도인지 확인하기",
-    "원/달러 환율이 전날보다 크게 오르지 않았는지 보기",
-    "삼성전자·SK하이닉스가 같은 방향으로 움직이는지 보기"
+    "엔비디아 관련 뉴스로 반도체 종목이 어떻게 움직이는지 보기",
+    "외국인이 순매수인지 순매도인지 확인하기",
+    "오늘 밤 미국 물가(PPI) 발표 전까지 무리한 매매 줄이기"
   ]
 }
