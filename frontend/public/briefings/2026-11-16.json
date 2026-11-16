@@ -1,0 +1,195 @@
+{
+  "date": "2026-11-16",
+  "generated_at": "2026-11-16T09:57:41+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,561.67",
+        "change_pct": -0.4
+      },
+      {
+        "name": "Nasdaq",
+        "value": "25,136.27",
+        "change_pct": -0.91
+      },
+      {
+        "name": "Dow",
+        "value": "52,347.55",
+        "change_pct": 0.1
+      }
+    ],
+    "sox": {
+      "value": "10,146.30",
+      "change_pct": -3.43,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "162.85",
+          "change_pct": -2.01
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "확인 못 함",
+          "change_pct": -4.76
+        },
+        {
+          "name": "AMD",
+          "value": "확인 못 함",
+          "change_pct": -8.75
+        }
+      ]
+    },
+    "macro": [],
+    "headlines": [
+      "반도체지수가 3.43% 급락했고 구성 30개 종목이 모두 내렸어요.",
+      "젠슨 황 CEO 사임 이후 엔비디아 리더십 공백 우려가 이어지며 엔비디아는 2% 내린 162.85달러로 마감했어요.",
+      "엔비디아 실적 발표가 17일 장 마감 후로 예정돼 있어 시장이 숨죽이고 있어요."
+    ]
+  },
+  "domestic": {
+    "direction": "약세 우려 · 변동성 주의",
+    "tone": "down",
+    "rationale": [
+      "미국 반도체주가 크게 내려 오늘 국내 반도체주도 부담을 받을 가능성이 커요.",
+      "환율과 한국 시장 마감 수치는 확인하지 못했어요. 장 초반 외국인 매매를 먼저 살펴보세요."
+    ],
+    "headlines": [
+      "지난 11일 코스피는 5,375.36으로 마감해 5,300선을 회복했어요.",
+      "미국 반도체 급락 소식이 오늘 국내 반도체 흐름을 좌우할 전망이에요.",
+      "17일 엔비디아 실적이 이번 주 최대 변수예요."
+    ],
+    "levels": "장 초반 삼성전자·SK하이닉스 하락폭과 외국인 순매도 여부를 먼저 확인하세요."
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "약세 가능",
+      "tone": "down",
+      "momentum": "미국 반도체주가 일제히 내려 장 초반 부담이 예상돼요.",
+      "strategy": "장 초반 급하게 사지 말고 하락폭이 안정되는지 보며 관망하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "약세 가능",
+      "tone": "down",
+      "momentum": "반도체지수 급락의 영향을 크게 받을 수 있어요.",
+      "strategy": "신규 매수는 엔비디아 실적(17일) 이후로 미루고, 보유 중이면 흐름을 지켜보세요."
+    }
+  },
+  "checklist": [
+    "장 시작 직후 반도체 대형주의 낙폭 확인",
+    "외국인 순매도 규모 확인",
+    "17일 엔비디아 실적 발표 전까지 무리한 매수 자제"
+  ],
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,095",
+        "change_pct": 0.12,
+        "support": "3,866",
+        "resistance": "4,366",
+        "score": 82
+      },
+      {
+        "ticker": "006840",
+        "name": "AK홀딩스",
+        "market": "KOSPI",
+        "close": "7,000",
+        "change_pct": -5.79,
+        "support": "6,202",
+        "resistance": "7,585",
+        "score": 61
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,460",
+        "change_pct": -1,
+        "support": "3,375",
+        "resistance": "4,065",
+        "score": 60
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "140,000",
+        "change_pct": 0.29,
+        "support": "125,525",
+        "resistance": "144,088",
+        "score": 71
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "13,640",
+        "change_pct": 0.44,
+        "support": "11,690",
+        "resistance": "15,953",
+        "score": 70
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,184",
+        "change_pct": -1.33,
+        "support": "1,073",
+        "resistance": "1,311",
+        "score": 59
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,615",
+        "change_pct": -4.49,
+        "support": "3,253",
+        "resistance": "4,089",
+        "score": 59
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "3,170",
+        "change_pct": -2.31,
+        "support": "2,799",
+        "resistance": "3,605",
+        "score": 56
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "15,970",
+        "change_pct": -2.32,
+        "support": "15,667",
+        "resistance": "18,110",
+        "score": 62
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "10,090",
+        "change_pct": -2.32,
+        "support": "6,700",
+        "resistance": "11,400",
+        "score": 67
+      }
+    ],
+    "as_of": "2026-11-16"
+  }
+}
