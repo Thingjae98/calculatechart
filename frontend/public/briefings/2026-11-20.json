@@ -1,0 +1,215 @@
+{
+  "date": "2026-11-20",
+  "generated_at": "2026-11-20T11:15:31+09:00",
+  "is_sample": false,
+  "global": {
+    "indices": [
+      {
+        "name": "S&P 500",
+        "value": "7,175.83",
+        "change_pct": -2.02
+      },
+      {
+        "name": "Nasdaq",
+        "value": "23,879.20",
+        "change_pct": -2.25
+      },
+      {
+        "name": "Dow",
+        "value": "49,097.06",
+        "change_pct": -2.19
+      }
+    ],
+    "sox": {
+      "value": "-",
+      "change_pct": null,
+      "components": [
+        {
+          "name": "엔비디아 (NVDA)",
+          "value": "-",
+          "change_pct": -3.3
+        },
+        {
+          "name": "브로드컴 (AVGO)",
+          "value": "-",
+          "change_pct": -3.66
+        },
+        {
+          "name": "마이크론 (MU)",
+          "value": "-",
+          "change_pct": -2
+        }
+      ]
+    },
+    "macro": [
+      {
+        "name": "원/달러 환율",
+        "value": "약 1,335원",
+        "change": "확인 중",
+        "tone": "flat"
+      },
+      {
+        "name": "미 국채 10년물",
+        "value": "확인 불가",
+        "change": "소폭 하락(추정)",
+        "tone": "flat"
+      },
+      {
+        "name": "WTI 유가",
+        "value": "확인 불가",
+        "change": "-",
+        "tone": "flat"
+      }
+    ],
+    "headlines": [
+      "미국 3대 지수가 2% 넘게 급락했어요. S&P 500은 6거래일 연속 내리며 2024년 이후 가장 긴 하락이에요.",
+      "AI 기업 앤트로픽이 상장 첫날 크게 올랐지만, 다른 AI·반도체주는 팔렸어요(AI 투자 둔화 우려).",
+      "AMD는 공매도 보고서 여파로 약 7% 급락, 엔비디아도 장 초반 상승분을 모두 반납하고 내렸어요.",
+      "미국의 금리 인상 가능성 이야기가 시장 부담이 되고 있어요."
+    ]
+  },
+  "domestic": {
+    "direction": "하락 우세",
+    "tone": "down",
+    "rationale": [
+      "미국 기술주 급락 영향으로 반도체 중심 외국인 매도가 나올 가능성이 커요.",
+      "어제 코스피는 5,100선을 회복했지만 하루 만에 상승분이 반납될 수 있어요."
+    ],
+    "headlines": [
+      "전날 코스피는 장중 흔들리다 5,137.89로 마감했어요.",
+      "반도체 대형주 중심으로 개장 초반 큰 폭 약세가 예상돼요.",
+      "환율은 1,330원대 중반에서 움직이고 있어요."
+    ],
+    "levels": "코스피 5,000선이 심리적 지지선 — 이탈 시 추가 하락 주의"
+  },
+  "semis": {
+    "samsung": {
+      "name": "삼성전자",
+      "ticker": "005930",
+      "direction": "하락",
+      "tone": "down",
+      "momentum": "미국 반도체주 급락과 외국인 매도가 오늘 흐름을 좌우해요.",
+      "strategy": "급락 초반에는 서두르지 말고 지켜보세요. 보유 중이라면 흔들리지 말고 상황을 확인하세요."
+    },
+    "hynix": {
+      "name": "SK하이닉스",
+      "ticker": "000660",
+      "direction": "하락",
+      "tone": "down",
+      "momentum": "AI 반도체 우려로 변동성이 가장 큰 종목이에요.",
+      "strategy": "무리한 추가 매수는 피하고, 하락이 진정되는지 확인한 뒤 판단하세요."
+    }
+  },
+  "top_caps": {
+    "kospi": [
+      {
+        "ticker": "095570",
+        "name": "AJ네트웍스",
+        "market": "KOSPI",
+        "close": "4,010",
+        "change_pct": -1.23,
+        "support": "3,863",
+        "resistance": "4,366",
+        "score": 58
+      },
+      {
+        "ticker": "006840",
+        "name": "AK홀딩스",
+        "market": "KOSPI",
+        "close": "8,080",
+        "change_pct": 0,
+        "support": "7,589",
+        "resistance": "8,890",
+        "score": 45
+      },
+      {
+        "ticker": "027410",
+        "name": "BGF",
+        "market": "KOSPI",
+        "close": "3,395",
+        "change_pct": -1.88,
+        "support": "3,375",
+        "resistance": "4,065",
+        "score": 80
+      },
+      {
+        "ticker": "282330",
+        "name": "BGF리테일",
+        "market": "KOSPI",
+        "close": "142,100",
+        "change_pct": 1.43,
+        "support": "125,525",
+        "resistance": "144,088",
+        "score": 65
+      },
+      {
+        "ticker": "138930",
+        "name": "BNK금융지주",
+        "market": "KOSPI",
+        "close": "13,170",
+        "change_pct": -1.13,
+        "support": "11,690",
+        "resistance": "13,780",
+        "score": 56
+      }
+    ],
+    "kosdaq": [
+      {
+        "ticker": "060310",
+        "name": "3S",
+        "market": "KOSDAQ",
+        "close": "1,135",
+        "change_pct": -2.07,
+        "support": "1,073",
+        "resistance": "1,337",
+        "score": 56
+      },
+      {
+        "ticker": "054620",
+        "name": "APS",
+        "market": "KOSDAQ",
+        "close": "3,590",
+        "change_pct": -1.1,
+        "support": "3,253",
+        "resistance": "4,090",
+        "score": 64
+      },
+      {
+        "ticker": "079810",
+        "name": "APS이노베이션",
+        "market": "KOSDAQ",
+        "close": "2,935",
+        "change_pct": -4.08,
+        "support": "2,804",
+        "resistance": "3,105",
+        "score": 77
+      },
+      {
+        "ticker": "265520",
+        "name": "AP시스템",
+        "market": "KOSDAQ",
+        "close": "14,510",
+        "change_pct": -4.73,
+        "support": "13,790",
+        "resistance": "16,900",
+        "score": 66
+      },
+      {
+        "ticker": "211270",
+        "name": "AP위성",
+        "market": "KOSDAQ",
+        "close": "8,990",
+        "change_pct": -4.67,
+        "support": "7,540",
+        "resistance": "10,063",
+        "score": 56
+      }
+    ],
+    "as_of": "2026-11-20"
+  },
+  "checklist": [
+    "개장 직후 외국인이 얼마나 파는지 확인하세요.",
+    "코스피 5,000선을 지키는지 보세요.",
+    "환율이 1,340원을 넘는지 살펴보세요."
+  ]
+}
