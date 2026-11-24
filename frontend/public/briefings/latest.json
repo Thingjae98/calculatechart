@@ -1,38 +1,38 @@
 {
-  "date": "2026-11-23",
-  "generated_at": "2026-11-23T10:36:59+09:00",
+  "date": "2026-11-24",
+  "generated_at": "2026-11-24T14:16:22+09:00",
   "is_sample": false,
   "global": {
     "indices": [
       {
         "name": "S&P 500",
-        "value": "6,910.39",
-        "change_pct": -3.7
+        "value": "7,237.17",
+        "change_pct": 4.73
       },
       {
         "name": "Nasdaq",
-        "value": "22,617.73",
-        "change_pct": -5.28
+        "value": "24,089.56",
+        "change_pct": 6.51
       },
       {
         "name": "Dow",
-        "value": "48,147.33",
-        "change_pct": -1.93
+        "value": "-",
+        "change_pct": 3
       }
     ],
     "sox": {
       "value": "-",
-      "change_pct": -10.73,
+      "change_pct": null,
       "components": [
         {
           "name": "엔비디아 (NVDA)",
-          "value": "125.53",
-          "change_pct": -14.01
+          "value": "165.05",
+          "change_pct": 31.48
         },
         {
-          "name": "마이크론 (MU)",
+          "name": "TSMC (TSM)",
           "value": "-",
-          "change_pct": -13.89
+          "change_pct": null
         },
         {
           "name": "브로드컴 (AVGO)",
@@ -44,7 +44,7 @@
     "macro": [
       {
         "name": "원/달러 환율",
-        "value": "약 1,335원",
+        "value": "약 1,344~1,352원",
         "change": "확인 중",
         "tone": "flat"
       },
@@ -62,154 +62,154 @@
       }
     ],
     "headlines": [
-      "미국 증시가 금요일 크게 무너졌어요. 나스닥은 5% 넘게 떨어져 올해 오른 만큼을 모두 반납했어요.",
-      "엔비디아가 14% 폭락했어요. 미국 증권당국이 회계 문제를 살펴보고 있다는 보도 때문이에요.",
-      "AI에 쓴 큰돈만큼 이익이 날지 의심하는 분위기가 커져 반도체주가 줄줄이 팔렸어요.",
-      "공포지수(VIX)가 35 위로 치솟았어요. 이번 주 나스닥은 약 10% 하락해 코로나 이후 가장 큰 주간 낙폭이에요."
+      "미국 증시가 월요일 크게 반등했어요. 나스닥은 6.5%, S&P500은 4.7% 올라 2025년 4월 이후 가장 큰 상승폭이에요.",
+      "엔비디아 이사회가 젠슨 황을 CEO로 복귀시키기로 하자 엔비디아가 31% 급등했어요.",
+      "나스닥 100종목 중 94종목이 올랐어요. 지난주 폭락 뒤 안도감이 크게 퍼졌어요.",
+      "다만 연준이 더 강경해질 수 있다는 관측도 있어 반등이 이어질지는 지켜봐야 해요."
     ]
   },
   "domestic": {
-    "direction": "급락 출발 주의",
-    "tone": "down",
+    "direction": "반등 기대, 변동성 주의",
+    "tone": "up",
     "rationale": [
-      "금요일 필라델피아 반도체지수가 10% 넘게 폭락해 삼성전자·SK하이닉스 중심의 외국인 매도가 이어질 가능성이 커요.",
-      "정부가 시장 안정 기금을 준비하고 24일부터 기업 자사주 매입 한도도 완화하지만, 규모와 시기는 아직 정해지지 않았어요."
+      "미국 반도체·AI주가 크게 반등해 어제 급락한 삼성전자·SK하이닉스에 외국인 매수세가 돌아올 가능성이 있어요.",
+      "어제 코스피가 3.3% 내린 4,708로 마감할 만큼 불안이 커서, 반등해도 오르내림이 클 수 있어요."
     ],
     "headlines": [
-      "코스피는 금요일 5.21% 내린 4,869.96으로 마감했고, 코스닥도 5.71% 내린 645.68이에요.",
-      "금요일 코스피·코스닥에 매도 사이드카(프로그램 매도 5분 정지)가 발동됐어요.",
-      "이번 주 한국은행 금리 결정과 미국 물가 발표가 예정돼 있어요."
+      "코스피는 월요일 3.31% 내린 4,708.54로 마감했어요. 장중엔 낙폭이 5%를 넘기도 했어요.",
+      "삼성전자는 17만7,500원으로 235일 만에 17만원대로 내려왔고, SK하이닉스는 108만5천원으로 마감했어요.",
+      "원/달러 환율은 1,340원대 중반~1,350원 안팎이에요."
     ],
-    "levels": "코스피 4,800선이 1차 방어선 — 이 선이 무너지면 추가 하락에 주의"
+    "levels": "코스피 4,700선 지키는지가 관건 — 반등하면 4,870선(금요일 종가)이 1차 저항"
   },
   "semis": {
     "samsung": {
       "name": "삼성전자",
       "ticker": "005930",
-      "direction": "하락",
-      "tone": "down",
-      "momentum": "금요일 7% 하락(183,100원)했고 외국인이 4,324억원 팔았어요. 미국 반도체 폭락이 오늘도 부담이에요.",
-      "strategy": "급락 직후 서둘러 사지 말고 외국인 매도가 잦아드는지 먼저 보세요. 보유 중이라면 흔들려서 급하게 팔지 마세요."
+      "direction": "반등 기대",
+      "tone": "up",
+      "momentum": "어제 3.06% 하락한 177,500원. 미국 반도체 급반등이 오늘 분위기를 바꿀 수 있어요.",
+      "strategy": "보유 중이면 서두르지 말고 지켜보세요. 신규 매수는 외국인 매도가 잦아드는지 본 뒤에 하세요."
     },
     "hynix": {
       "name": "SK하이닉스",
       "ticker": "000660",
-      "direction": "하락",
-      "tone": "down",
-      "momentum": "금요일 5.9% 하락(1,113,000원), 외국인이 2,001억원 팔았어요. 마이크론 14% 급락도 부담이에요.",
-      "strategy": "변동폭이 매우 커서 무리한 추가 매수는 피하세요. 하락이 진정되는 신호를 확인한 뒤 판단하세요."
+      "direction": "반등 기대",
+      "tone": "up",
+      "momentum": "어제 2.52% 하락한 1,085,000원. 엔비디아 급등이 AI 반도체 기대를 되살렸어요.",
+      "strategy": "변동폭이 커서 한 번에 많이 사지 마세요. 오른다고 급히 따라 사기보다 흐름을 확인하세요."
     }
   },
-  "checklist": [
-    "개장 직후 외국인이 얼마나 파는지 확인하세요.",
-    "코스피 4,800선을 지키는지 보세요.",
-    "정부의 시장 안정 대책이 구체적으로 나오는지 살펴보세요."
-  ],
   "top_caps": {
     "kospi": [
       {
-        "ticker": "095570",
-        "name": "AJ네트웍스",
+        "ticker": "402340",
+        "name": "SK스퀘어",
         "market": "KOSPI",
-        "close": "3,785",
-        "change_pct": -4.54,
-        "support": null,
-        "resistance": "4,366",
-        "score": 58
+        "close": "720,000",
+        "change_pct": 4.2,
+        "support": "699,909",
+        "resistance": "977,000",
+        "score": 68
       },
       {
-        "ticker": "006840",
-        "name": "AK홀딩스",
+        "ticker": "373220",
+        "name": "LG에너지솔루션",
         "market": "KOSPI",
-        "close": "7,700",
-        "change_pct": -4.82,
-        "support": "7,589",
-        "resistance": "8,058",
+        "close": "314,500",
+        "change_pct": 7.34,
+        "support": "310,837",
+        "resistance": "373,427",
+        "score": 66
+      },
+      {
+        "ticker": "009150",
+        "name": "삼성전기",
+        "market": "KOSPI",
+        "close": "861,000",
+        "change_pct": 8.03,
+        "support": "796,000",
+        "resistance": "1,338,000",
         "score": 62
       },
       {
-        "ticker": "027410",
-        "name": "BGF",
+        "ticker": "207940",
+        "name": "삼성바이오로직스",
         "market": "KOSPI",
-        "close": "3,305",
-        "change_pct": -2.22,
-        "support": null,
-        "resistance": "3,840",
-        "score": 63
+        "close": "1,297,000",
+        "change_pct": 0.31,
+        "support": "1,150,000",
+        "resistance": "1,442,018",
+        "score": 61
       },
       {
-        "ticker": "282330",
-        "name": "BGF리테일",
+        "ticker": "005380",
+        "name": "현대차",
         "market": "KOSPI",
-        "close": "136,000",
-        "change_pct": -4.76,
-        "support": "125,525",
-        "resistance": "144,088",
-        "score": 57
-      },
-      {
-        "ticker": "138930",
-        "name": "BNK금융지주",
-        "market": "KOSPI",
-        "close": "12,360",
-        "change_pct": -4.19,
-        "support": "11,690",
-        "resistance": "13,780",
-        "score": 66
+        "close": "276,000",
+        "change_pct": 11.07,
+        "support": "253,500",
+        "resistance": "321,555",
+        "score": 74
       }
     ],
     "kosdaq": [
       {
-        "ticker": "060310",
-        "name": "3S",
+        "ticker": "196170",
+        "name": "알테오젠",
         "market": "KOSDAQ",
-        "close": "1,098",
-        "change_pct": -2.75,
-        "support": "1,073",
-        "resistance": "1,278",
-        "score": 69
+        "close": "166,900",
+        "change_pct": -1.24,
+        "support": "152,500",
+        "resistance": "228,500",
+        "score": 60
       },
       {
-        "ticker": "054620",
-        "name": "APS",
+        "ticker": "247540",
+        "name": "에코프로비엠",
         "market": "KOSDAQ",
-        "close": "3,140",
-        "change_pct": -10.03,
-        "support": "3,050",
-        "resistance": "4,100",
-        "score": 82
-      },
-      {
-        "ticker": "079810",
-        "name": "APS이노베이션",
-        "market": "KOSDAQ",
-        "close": "2,885",
-        "change_pct": 0.35,
-        "support": "2,804",
-        "resistance": "3,105",
-        "score": 76
-      },
-      {
-        "ticker": "265520",
-        "name": "AP시스템",
-        "market": "KOSDAQ",
-        "close": "13,800",
-        "change_pct": -4.37,
-        "support": "13,660",
-        "resistance": "18,110",
-        "score": 64
-      },
-      {
-        "ticker": "211270",
-        "name": "AP위성",
-        "market": "KOSDAQ",
-        "close": "8,300",
-        "change_pct": -4.49,
-        "support": "7,540",
-        "resistance": "8,860",
+        "close": "87,700",
+        "change_pct": 9.08,
+        "support": "86,910",
+        "resistance": "96,400",
         "score": 62
+      },
+      {
+        "ticker": "086520",
+        "name": "에코프로",
+        "market": "KOSDAQ",
+        "close": "70,000",
+        "change_pct": 9.2,
+        "support": "63,400",
+        "resistance": "77,865",
+        "score": 56
+      },
+      {
+        "ticker": "277810",
+        "name": "레인보우로보틱스",
+        "market": "KOSDAQ",
+        "close": "470,000",
+        "change_pct": 14.08,
+        "support": "432,908",
+        "resistance": "528,513",
+        "score": 47
+      },
+      {
+        "ticker": "036930",
+        "name": "주성엔지니어링",
+        "market": "KOSDAQ",
+        "close": "150,500",
+        "change_pct": 3.22,
+        "support": "126,100",
+        "resistance": "188,900",
+        "score": 65
       }
     ],
-    "as_of": "2026-11-23"
-  }
+    "as_of": "2026-11-24"
+  },
+  "checklist": [
+    "개장 직후 외국인이 사는 쪽으로 돌아섰는지 확인하세요.",
+    "코스피 4,700선을 지키는지 보세요.",
+    "미국 반등이 하루로 끝나지 않는지, 환율이 안정되는지 살펴보세요."
+  ]
 }
