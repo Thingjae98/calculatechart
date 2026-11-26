@@ -1,23 +1,23 @@
 {
-  "date": "2026-11-25",
-  "generated_at": "2026-11-25T13:04:57+09:00",
+  "date": "2026-11-26",
+  "generated_at": "2026-11-26T12:29:16+09:00",
   "is_sample": false,
   "global": {
     "indices": [
       {
         "name": "S&P 500",
-        "value": "7,201.09",
-        "change_pct": -0.5
+        "value": "7,182.78",
+        "change_pct": -0.25
       },
       {
         "name": "Nasdaq",
-        "value": "23,733.54",
-        "change_pct": -1.48
+        "value": "23,585.80",
+        "change_pct": -0.62
       },
       {
         "name": "Dow",
-        "value": "50,018.70",
-        "change_pct": 0.85
+        "value": "50,182.95",
+        "change_pct": 0.33
       }
     ],
     "sox": {
@@ -25,26 +25,19 @@
       "change_pct": null,
       "components": []
     },
-    "macro": [
-      {
-        "name": "WTI 유가",
-        "value": "상승",
-        "change": "확인 필요",
-        "tone": "flat"
-      }
-    ],
+    "macro": [],
     "headlines": [
-      "미국 증시: AI 관련 기술주가 전날 급등 뒤 힘이 빠지며 나스닥이 1.5% 하락했어요.",
-      "기술주가 아닌 종목들은 대체로 올라 다우지수는 0.9% 상승했어요.",
-      "앤트로픽 주가가 상장가 아래로 내려갔고, 국제유가는 올랐어요."
+      "미국 증시: 장중 AI·반도체주가 크게 빠졌다가 막판에 낙폭을 대부분 되돌렸어요. 나스닥은 한때 4% 넘게 내렸어요.",
+      "다우지수는 장중 1,100포인트 넘게 빠졌다가 오르며 마감했고, 중소형주가 강했어요.",
+      "물가지표와 새 관세 계획이 부담이었고, 미국은 추수감사절로 오늘 휴장이에요."
     ]
   },
   "domestic": {
-    "direction": "약세 출발 가능",
-    "tone": "down",
+    "direction": "혼조 출발 가능",
+    "tone": "flat",
     "rationale": [
-      "나스닥이 크게 내려 반도체·IT 대형주에 외국인 매도 부담이 있을 수 있어요.",
-      "다우가 올라 기술주 밖 업종은 버틸 여지가 있어요. 환율·SOX 수치는 확인하지 못했어요."
+      "나스닥이 내려 반도체·IT 대형주는 장 초반 부담이 있을 수 있어요.",
+      "막판에 낙폭을 회복해 급락 공포는 줄었어요. 환율·SOX 수치는 확인하지 못했어요."
     ],
     "headlines": [
       "오늘 확인된 국내 핵심 뉴스는 충분히 검증하지 못했어요.",
@@ -58,74 +51,69 @@
       "ticker": "005930",
       "direction": "관망",
       "tone": "flat",
-      "momentum": "미국 기술주 약세로 장 초반 눌릴 수 있어요. 개별 뉴스는 확인하지 못했어요.",
+      "momentum": "미국 반도체주가 장중 크게 흔들렸어요. 개별 뉴스는 확인하지 못했어요.",
       "strategy": "무리한 추가 매수보다 보유하며 외국인 수급을 지켜보세요."
     },
     "hynix": {
       "name": "SK하이닉스",
       "ticker": "000660",
-      "direction": "약세 주의",
-      "tone": "down",
-      "momentum": "AI 관련주 약세 영향을 크게 받는 종목이에요.",
+      "direction": "변동 주의",
+      "tone": "flat",
+      "momentum": "AI 관련주 흔들림의 영향을 크게 받는 종목이에요.",
       "strategy": "신규 진입은 장 초반 흐름이 안정된 뒤에 판단하세요."
     }
   },
-  "checklist": [
-    "개장 직후 외국인이 사는지 파는지 확인하기",
-    "반도체 대형주가 장 초반 낙폭을 줄이는지 보기",
-    "원/달러 환율이 급등하지 않는지 확인하기"
-  ],
   "top_caps": {
     "kospi": [
       {
         "ticker": "095570",
         "name": "AJ네트웍스",
         "market": "KOSPI",
-        "close": "3,725",
-        "change_pct": -3.25,
-        "support": "3,705",
+        "close": "3,925",
+        "change_pct": 4.53,
+        "support": "3,863",
         "resistance": "4,366",
-        "score": 68
+        "score": 60
       },
       {
         "ticker": "006840",
         "name": "AK홀딩스",
         "market": "KOSPI",
-        "close": "7,600",
-        "change_pct": -2.19,
-        "support": "6,202",
+        "close": "7,990",
+        "change_pct": 3.63,
+        "support": "7,589",
         "resistance": "8,058",
-        "score": 62
+        "score": 59
       },
       {
         "ticker": "027410",
         "name": "BGF",
         "market": "KOSPI",
-        "close": "3,290",
-        "change_pct": -0.9,
-        "support": "3,255",
-        "resistance": "3,840",
-        "score": 64
+        "close": "3,240",
+        "change_pct": -1.52,
+        "support": null,
+        "resistance": "3,590",
+        "score": 60
       },
       {
         "ticker": "282330",
         "name": "BGF리테일",
         "market": "KOSPI",
-        "close": "140,200",
-        "change_pct": 4.32,
-        "support": "125,525",
+        "close": "138,200",
+        "change_pct": -2.61,
+        "support": "125,377",
         "resistance": "144,088",
-        "score": 60
+        "score": 58
       },
       {
         "ticker": "138930",
         "name": "BNK금융지주",
         "market": "KOSPI",
-        "close": "12,530",
-        "change_pct": -1.57,
+        "close": "12,500",
+        "change_pct": -1.42,
         "support": "11,690",
         "resistance": "13,780",
-        "score": 71
+        "score": 76
       }
     ],
     "kosdaq": [
@@ -133,53 +121,58 @@
         "ticker": "060310",
         "name": "3S",
         "market": "KOSDAQ",
-        "close": "1,114",
-        "change_pct": -3.05,
+        "close": "1,091",
+        "change_pct": 1.11,
         "support": "1,073",
-        "resistance": "1,337",
-        "score": 45
+        "resistance": "1,278",
+        "score": 57
       },
       {
         "ticker": "054620",
         "name": "APS",
         "market": "KOSDAQ",
-        "close": "3,595",
-        "change_pct": 3.16,
+        "close": "3,600",
+        "change_pct": 0.7,
         "support": "3,253",
         "resistance": "4,090",
-        "score": 81
+        "score": 72
       },
       {
         "ticker": "079810",
         "name": "APS이노베이션",
         "market": "KOSDAQ",
         "close": "2,960",
-        "change_pct": -1.33,
+        "change_pct": 1.89,
         "support": "2,804",
         "resistance": "3,527",
-        "score": 71
+        "score": 68
       },
       {
         "ticker": "265520",
         "name": "AP시스템",
         "market": "KOSDAQ",
-        "close": "14,040",
-        "change_pct": -3.84,
+        "close": "13,910",
+        "change_pct": 0.36,
         "support": "13,790",
-        "resistance": "18,010",
-        "score": 58
+        "resistance": "17,200",
+        "score": 62
       },
       {
         "ticker": "211270",
         "name": "AP위성",
         "market": "KOSDAQ",
-        "close": "8,090",
-        "change_pct": -3.58,
+        "close": "8,940",
+        "change_pct": 13.74,
         "support": "7,540",
-        "resistance": "8,860",
-        "score": 66
+        "resistance": "10,063",
+        "score": 89
       }
     ],
-    "as_of": "2026-11-25"
-  }
+    "as_of": "2026-11-26"
+  },
+  "checklist": [
+    "개장 직후 외국인이 사는지 파는지 확인하기",
+    "반도체 대형주가 장 초반 낙폭을 줄이는지 보기",
+    "원/달러 환율이 오르는지 내리는지 살펴보기"
+  ]
 }
